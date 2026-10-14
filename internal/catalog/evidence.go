@@ -51,7 +51,7 @@ type EvidenceFilter struct {
 
 const evidenceColumns = "id,project_id,source_record_id,url,title,excerpt,kind,publisher,published_at,collected_at,is_public,supersedes_id"
 
-func CreateManualEvidence(ctx context.Context, q Querier, projectID string, input CreateEvidenceInput, now time.Time) (Evidence, error) {
+func CreateManualEvidence(ctx context.Context, q *sql.Tx, projectID string, input CreateEvidenceInput, now time.Time) (Evidence, error) {
 	if input.Kind == "METRIC_OBSERVATION" || len(input.ObservationIDs) != 0 {
 		return Evidence{}, fault.Field("kind", "人工证据不能伪造指标观测")
 	}
@@ -60,7 +60,7 @@ func CreateManualEvidence(ctx context.Context, q Querier, projectID string, inpu
 
 // CreateEvidence is the catalog boundary used by trusted collectors as well as
 // manual entry. HTTP handlers use CreateManualEvidence to exclude metric claims.
-func CreateEvidence(ctx context.Context, q Querier, projectID string, input CreateEvidenceInput, now time.Time) (Evidence, error) {
+func CreateEvidence(ctx context.Context, q *sql.Tx, projectID string, input CreateEvidenceInput, now time.Time) (Evidence, error) {
 	if _, err := GetProject(ctx, q, projectID); err != nil {
 		return Evidence{}, err
 	}
