@@ -3,7 +3,7 @@ import AxeBuilder from "@axe-core/playwright";
 
 test("create, read, edit and reload a project with no unexpected dialog", async ({
   page,
-}) => {
+}, testInfo) => {
   const dialogs: string[] = [];
   const errors: string[] = [];
   page.on("dialog", async (dialog) => {
@@ -31,6 +31,51 @@ test("create, read, edit and reload a project with no unexpected dialog", async 
     "https://example.com/edge",
   );
   expect(dialogs).toEqual([]);
+  await expect(page.getByText("还没有证据记录")).toBeVisible();
+  await page.getByRole("button", { name: "记录证据" }).click();
+  await page
+    .getByLabel("证据链接", { exact: true })
+    .fill("https://example.com/edge/pricing?utm_source=browser-test");
+  await page.getByLabel("证据标题", { exact: true }).fill("官方定价说明");
+  await page
+    .getByLabel("原文摘录", { exact: true })
+    .fill("基础套餐标价为每月 20 美元；这是页面原文的测试摘录。");
+  await page
+    .getByLabel("证据类型", { exact: true })
+    .selectOption("OFFICIAL_PRICING");
+  await page.getByRole("button", { name: "保存证据" }).click();
+  await expect(
+    page.getByRole("heading", { name: "官方定价说明", exact: true }),
+  ).toBeVisible();
+  await expect(page.getByText("私密", { exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: "查看原始来源" }),
+  ).toHaveAttribute("href", "https://example.com/edge/pricing");
+  await page.getByRole("button", { name: "补充修订" }).click();
+  await page
+    .getByLabel("证据标题", { exact: true })
+    .fill("官方定价说明（补充期间）");
+  await page.getByRole("button", { name: "保存证据" }).click();
+  await expect(
+    page.getByRole("heading", {
+      name: "官方定价说明（补充期间）",
+      exact: true,
+    }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "官方定价说明", exact: true }),
+  ).toBeVisible();
+  expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+  await page.evaluate(() => {
+    window.scrollTo(0, 0);
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+  });
+  await page.screenshot({
+    path: testInfo.outputPath("evidence-desktop.png"),
+    fullPage: true,
+  });
   await page.getByRole("button", { name: "编辑信息", exact: true }).click();
   await page
     .getByLabel("一句话介绍", { exact: true })
@@ -54,7 +99,7 @@ test("create, read, edit and reload a project with no unexpected dialog", async 
   expect(results.violations).toEqual([]);
   expect(errors).toEqual([]);
   await page.screenshot({
-    path: "../docs/screenshots/catalog-desktop.png",
+    path: testInfo.outputPath("catalog-desktop.png"),
     fullPage: true,
   });
 });
@@ -62,7 +107,7 @@ test("create, read, edit and reload a project with no unexpected dialog", async 
 test("mobile catalog stays within the viewport and remains accessible", async ({
   page,
   request,
-}) => {
+}, testInfo) => {
   const created = await request.post("/api/v1/projects", {
     headers: { "Idempotency-Key": "mobile-seed" },
     data: {
@@ -88,7 +133,7 @@ test("mobile catalog stays within the viewport and remains accessible", async ({
   ).toBe(true);
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
   await page.screenshot({
-    path: "../docs/screenshots/catalog-mobile.png",
+    path: testInfo.outputPath("catalog-mobile.png"),
     fullPage: true,
   });
 });

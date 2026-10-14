@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import { ProjectList } from "./ProjectList";
 import { ProjectDetails } from "./ProjectDetails";
 import "./styles.css";
+import "./evidence.css";
 function App() {
   const path = window.location.pathname;
   const projectID = path.startsWith("/projects/")
@@ -19,7 +20,7 @@ function App() {
       <a href="#main" className="skip-link">
         跳转到主要内容
       </a>
-      <aside className="sidebar">
+      <aside className="sidebar" aria-label="工作区导航">
         <a href="/radar" className="brand">
           <svg viewBox="0 0 36 36" width="36" height="36" aria-hidden="true">
             <circle cx="18" cy="18" r="15" />

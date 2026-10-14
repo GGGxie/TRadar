@@ -8,6 +8,7 @@ import {
   type Resource,
 } from "./api";
 import { ProjectForm } from "./ProjectForm";
+import { EvidencePanel } from "./EvidencePanel";
 export function ProjectDetails({ id }: { id: string }) {
   const [project, setProject] = useState<Project | null>(null);
   const [error, setError] = useState("");
@@ -96,17 +97,21 @@ export function ProjectDetails({ id }: { id: string }) {
               </div>
             </dl>
           </section>
-          <aside className="evidence-note">
+          <section
+            className="evidence-note"
+            aria-labelledby="evidence-guidance-title"
+          >
             <span className="note-icon" aria-hidden="true">
               i
             </span>
             <div>
-              <h2>先记录，再求证</h2>
+              <h2 id="evidence-guidance-title">先记录，再求证</h2>
               <p>
                 项目介绍来自你的录入。热度、用户需求和商业表现，需要各自的来源与证据。
               </p>
             </div>
-          </aside>
+          </section>
+          <EvidencePanel projectId={project.id} />
         </>
       )}
     </>

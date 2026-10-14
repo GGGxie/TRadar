@@ -4,7 +4,15 @@ export const categories = {
   SAAS: "SaaS / 产品",
   OTHER: "其他方向",
 } as const;
+export const evidenceKinds = {
+  OFFICIAL_DESCRIPTION: "官方介绍",
+  OFFICIAL_PRICING: "官方定价",
+  FOUNDER_CLAIM: "创始人自述",
+  THIRD_PARTY_ESTIMATE: "第三方估算",
+  PUBLIC_EXCERPT: "公开摘录",
+} as const;
 export type Category = keyof typeof categories;
+export type EvidenceKind = keyof typeof evidenceKinds;
 export interface Project {
   id: string;
   name: string;
@@ -22,6 +30,31 @@ export interface ProjectInput {
   canonicalUrl: string;
   summary: string;
   category: Category;
+}
+export interface Evidence {
+  id: string;
+  projectId: string;
+  sourceRecordId: string | null;
+  url: string;
+  title: string;
+  excerpt: string;
+  kind: EvidenceKind | "METRIC_OBSERVATION";
+  publisher: string | null;
+  publishedAt: string | null;
+  collectedAt: string;
+  isPublic: boolean;
+  observationIds: string[];
+  supersedesId: string | null;
+}
+export interface EvidenceInput {
+  url: string;
+  title: string;
+  excerpt: string;
+  kind: EvidenceKind;
+  publisher?: string;
+  publishedAt?: string;
+  isPublic: boolean;
+  supersedesId?: string;
 }
 export interface Page<T> {
   data: T[];
@@ -99,6 +132,17 @@ export function saveProject(
     });
   }
   return request<Resource<Project>>("/projects", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "Idempotency-Key": key },
+    body: JSON.stringify(input),
+  });
+}
+export function saveEvidence(
+  projectId: string,
+  input: EvidenceInput,
+  key: string,
+) {
+  return request<Resource<Evidence>>(`/projects/${projectId}/evidence`, {
     method: "POST",
     headers: { "Content-Type": "application/json", "Idempotency-Key": key },
     body: JSON.stringify(input),

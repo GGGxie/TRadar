@@ -1,0 +1,132 @@
+.evidence-card {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 28px;
+  margin: 28px 0;
+}
+.evidence-card > .section-heading {
+  margin-bottom: 24px;
+}
+.evidence-form {
+  background: #f7f9f6;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 20px;
+  margin-bottom: 24px;
+}
+.evidence-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 500;
+}
+.evidence-form input,
+.evidence-form select,
+.evidence-form textarea {
+  width: 100%;
+}
+.evidence-form .visibility-choice {
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 10px;
+  margin-top: 16px;
+  color: var(--muted);
+  font-weight: 400;
+  line-height: 1.6;
+}
+.evidence-form .visibility-choice input {
+  width: auto;
+  margin-top: 3px;
+}
+.revision-note {
+  color: #49604f;
+  background: #eaf0e6;
+  border-left: 3px solid #789071;
+  padding: 10px 12px;
+  font-size: 12px;
+  margin-bottom: 18px;
+}
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 16px;
+  margin-top: 20px;
+}
+.evidence-empty {
+  text-align: center;
+  padding: 44px 20px;
+  border: 1px dashed #ccd7cb;
+  border-radius: 6px;
+}
+.evidence-empty p {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.8;
+  margin-top: 8px;
+}
+.evidence-list article {
+  padding: 22px 0;
+  border-top: 1px solid var(--border);
+}
+.evidence-list article:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+.evidence-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--muted);
+  font-size: 10px;
+  margin-bottom: 12px;
+}
+.evidence-list h3 {
+  font-size: 15px;
+}
+.evidence-list blockquote {
+  margin: 12px 0;
+  padding-left: 16px;
+  border-left: 2px solid #c7d7c3;
+  color: #405047;
+  font-size: 13px;
+  line-height: 1.8;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.evidence-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  font-size: 11px;
+}
+.evidence-actions a {
+  color: var(--accent);
+  overflow-wrap: anywhere;
+}
+.evidence-list .pagination {
+  margin: 8px -28px -28px;
+  border-top: 1px solid var(--border);
+}
+@media (max-width: 720px) {
+  .evidence-card {
+    padding: 20px;
+  }
+  .evidence-form {
+    padding: 16px;
+  }
+  .evidence-meta,
+  .evidence-actions {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+  .evidence-list .pagination {
+    margin: 8px -20px -20px;
+  }
+  .form-actions .primary {
+    flex: 1;
+  }
+}
