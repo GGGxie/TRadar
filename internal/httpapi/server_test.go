@@ -210,3 +210,35 @@ func TestEvidenceHTTPIsImmutablePrivateByDefaultAndRetrySafe(t *testing.T) {
 		t.Fatalf("client collectedAt accepted: %d %s", forgedTime.Code, forgedTime.Body)
 	}
 }
+
+func TestCatalogSurvivesApplicationRestart(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "radar.db")
+	db, err := storage.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	handler := New(db, Config{})
+	created := call(handler, "POST", "/api/v1/projects", `{"name":"Restart Proof","canonicalUrl":"https://restart.test"}`, "restart-proof", "")
+	if created.Code != http.StatusCreated {
+		t.Fatalf("create before restart: %d %s", created.Code, created.Body)
+	}
+	if err = db.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	db, err = storage.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	handler = New(db, Config{})
+	listed := call(handler, "GET", "/api/v1/projects?q=Restart", "", "", "")
+	var page struct {
+		Data []struct {
+			Name string `json:"name"`
+		} `json:"data"`
+	}
+	if err = json.Unmarshal(listed.Body.Bytes(), &page); err != nil || listed.Code != http.StatusOK || len(page.Data) != 1 || page.Data[0].Name != "Restart Proof" {
+		t.Fatalf("after restart: %d %s %v", listed.Code, listed.Body, err)
+	}
+}
