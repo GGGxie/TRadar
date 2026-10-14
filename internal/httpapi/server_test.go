@@ -2,6 +2,8 @@ package httpapi
 
 import (
 	"bytes"
+	"context"
+	"database/sql"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -9,17 +11,24 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
+	"tradar/internal/catalog"
 	"tradar/internal/storage"
 )
 
 func testServer(t *testing.T) http.Handler {
+	t.Helper()
+	handler, _ := testServerWithDB(t)
+	return handler
+}
+func testServerWithDB(t *testing.T) (http.Handler, *sql.DB) {
 	t.Helper()
 	db, err := storage.Open(filepath.Join(t.TempDir(), "radar.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { db.Close() })
-	return New(db, Config{})
+	return New(db, Config{}), db
 }
 func call(h http.Handler, method, path, body, key, rev string) *httptest.ResponseRecorder {
 	r := httptest.NewRequest(method, "http://localhost"+path, bytes.NewBufferString(body))
@@ -240,5 +249,70 @@ func TestCatalogSurvivesApplicationRestart(t *testing.T) {
 	}
 	if err = json.Unmarshal(listed.Body.Bytes(), &page); err != nil || listed.Code != http.StatusOK || len(page.Data) != 1 || page.Data[0].Name != "Restart Proof" {
 		t.Fatalf("after restart: %d %s %v", listed.Code, listed.Body, err)
+	}
+}
+
+func TestSourceAndObservationHTTPFollowCurrentAssociation(t *testing.T) {
+	handler, db := testServerWithDB(t)
+	ctx := context.Background()
+	now := time.Date(2026, 10, 14, 12, 0, 0, 0, time.UTC)
+	var first, second catalog.Project
+	var source catalog.SourceRecord
+	err := storage.WithTx(ctx, db, func(tx *sql.Tx) error {
+		var err error
+		first, _, err = catalog.CreateProject(ctx, tx, catalog.CreateProjectInput{Name: "First", CanonicalURL: "https://first-http.test"}, now)
+		if err != nil {
+			return err
+		}
+		second, _, err = catalog.CreateProject(ctx, tx, catalog.CreateProjectInput{Name: "Second", CanonicalURL: "https://second-http.test"}, now)
+		if err != nil {
+			return err
+		}
+		source, _, err = catalog.UpsertSource(ctx, tx, catalog.UpsertSourceInput{
+			ProjectID: first.ID, Source: "HACKER_NEWS", ExternalID: "item:808", RecordType: "DISCUSSION",
+			URL: "https://news.ycombinator.com/item?id=808", Title: "Show HN", FetchedAt: now,
+		})
+		if err != nil {
+			return err
+		}
+		_, err = catalog.AppendObservations(ctx, tx, "run-http", source.ID, []catalog.ObservationInput{{
+			Metric: "POINTS", Basis: "CUMULATIVE", Value: 18, ObservedAt: now, FetchedAt: now,
+		}})
+		return err
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	sources := call(handler, "GET", "/api/v1/projects/"+first.ID+"/sources", "", "", "")
+	if sources.Code != http.StatusOK || !strings.Contains(sources.Body.String(), source.ID) {
+		t.Fatalf("sources: %d %s", sources.Code, sources.Body)
+	}
+	from := now.Add(-time.Hour).Format(time.RFC3339)
+	to := now.Add(time.Hour).Format(time.RFC3339)
+	observationsPath := "/api/v1/projects/" + first.ID + "/observations?from=" + from + "&to=" + to
+	observations := call(handler, "GET", observationsPath, "", "", "")
+	if observations.Code != http.StatusOK || !strings.Contains(observations.Body.String(), `"value":18`) {
+		t.Fatalf("observations: %d %s", observations.Code, observations.Body)
+	}
+	missingRevision := call(handler, "PATCH", "/api/v1/source-records/"+source.ID, `{"projectId":"`+second.ID+`","reason":"纠正项目归属"}`, "", "")
+	if missingRevision.Code != http.StatusPreconditionRequired {
+		t.Fatalf("missing revision: %d %s", missingRevision.Code, missingRevision.Body)
+	}
+	moved := call(handler, "PATCH", "/api/v1/source-records/"+source.ID, `{"projectId":"`+second.ID+`","reason":"纠正项目归属"}`, "", `"1"`)
+	if moved.Code != http.StatusOK || moved.Header().Get("ETag") != `"2"` {
+		t.Fatalf("move source: %d %s", moved.Code, moved.Body)
+	}
+	oldSources := call(handler, "GET", "/api/v1/projects/"+first.ID+"/sources", "", "", "")
+	newSources := call(handler, "GET", "/api/v1/projects/"+second.ID+"/sources", "", "", "")
+	if strings.Contains(oldSources.Body.String(), source.ID) || !strings.Contains(newSources.Body.String(), source.ID) {
+		t.Fatalf("association lists old=%s new=%s", oldSources.Body, newSources.Body)
+	}
+	movedObservations := call(handler, "GET", "/api/v1/projects/"+second.ID+"/observations?from="+from+"&to="+to, "", "", "")
+	if movedObservations.Code != http.StatusOK || !strings.Contains(movedObservations.Body.String(), `"value":18`) {
+		t.Fatalf("moved observations: %d %s", movedObservations.Code, movedObservations.Body)
+	}
+	tooWide := call(handler, "GET", "/api/v1/projects/"+second.ID+"/observations?from=2026-01-01T00:00:00Z&to=2026-10-14T00:00:00Z", "", "", "")
+	if tooWide.Code != 422 {
+		t.Fatalf("wide window accepted: %d %s", tooWide.Code, tooWide.Body)
 	}
 }
