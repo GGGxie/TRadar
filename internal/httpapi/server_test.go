@@ -159,3 +159,54 @@ func TestSecurityHeadersApplyToEveryResponse(t *testing.T) {
 		}
 	}
 }
+
+func TestEvidenceHTTPIsImmutablePrivateByDefaultAndRetrySafe(t *testing.T) {
+	h := testServer(t)
+	projectResponse := call(h, "POST", "/api/v1/projects", `{"name":"证据项目","canonicalUrl":"https://evidence.test"}`, "evidence-project", "")
+	var project struct {
+		Data struct {
+			ID string `json:"id"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(projectResponse.Body.Bytes(), &project); err != nil || projectResponse.Code != 201 {
+		t.Fatalf("project: %d %s %v", projectResponse.Code, projectResponse.Body, err)
+	}
+	path := "/api/v1/projects/" + project.Data.ID + "/evidence"
+	body := `{"url":"https://evidence.test/pricing?utm_source=note","title":"定价页","excerpt":"官方页面列出了每月套餐。","kind":"OFFICIAL_PRICING"}`
+	created := call(h, "POST", path, body, "evidence-intent", "")
+	if created.Code != 201 {
+		t.Fatalf("create evidence: %d %s", created.Code, created.Body)
+	}
+	replayed := call(h, "POST", path, body, "evidence-intent", "")
+	if replayed.Code != 201 || replayed.Body.String() != created.Body.String() {
+		t.Fatalf("replay differs: %d %s", replayed.Code, replayed.Body)
+	}
+	var item struct {
+		Data struct {
+			URL            string   `json:"url"`
+			IsPublic       bool     `json:"isPublic"`
+			ObservationIDs []string `json:"observationIds"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(created.Body.Bytes(), &item); err != nil || item.Data.IsPublic || item.Data.URL != "https://evidence.test/pricing" || item.Data.ObservationIDs == nil {
+		t.Fatalf("created evidence: %+v %v", item.Data, err)
+	}
+	listed := call(h, "GET", path+"?page=1&pageSize=10", "", "", "")
+	var page struct {
+		Data       []json.RawMessage `json:"data"`
+		Pagination struct {
+			TotalItems int `json:"totalItems"`
+		} `json:"pagination"`
+	}
+	if err := json.Unmarshal(listed.Body.Bytes(), &page); err != nil || listed.Code != 200 || len(page.Data) != 1 || page.Pagination.TotalItems != 1 {
+		t.Fatalf("list evidence: %d %s %v", listed.Code, listed.Body, err)
+	}
+	metric := call(h, "POST", path, `{"url":"https://evidence.test/stars","title":"stars","excerpt":"999","kind":"METRIC_OBSERVATION"}`, "fake-metric", "")
+	if metric.Code != 422 {
+		t.Fatalf("manual metric accepted: %d %s", metric.Code, metric.Body)
+	}
+	forgedTime := call(h, "POST", path, `{"url":"https://evidence.test/x","title":"x","excerpt":"x","kind":"PUBLIC_EXCERPT","collectedAt":"2020-01-01T00:00:00Z"}`, "forged-time", "")
+	if forgedTime.Code != 400 {
+		t.Fatalf("client collectedAt accepted: %d %s", forgedTime.Code, forgedTime.Body)
+	}
+}

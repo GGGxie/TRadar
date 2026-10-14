@@ -46,6 +46,7 @@ func New(db *sql.DB, config Config) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/v1/projects", s.projects)
 	mux.HandleFunc("/api/v1/projects/{id}", s.project)
+	mux.HandleFunc("/api/v1/projects/{id}/evidence", s.projectEvidence)
 	mux.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) { writeError(w, r, fault.Missing("接口")) })
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != "GET" {
