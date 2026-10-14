@@ -5,5 +5,9 @@
 /web/test-results/
 /web/playwright-report/
 .env
+.env.*
+!.env.example
+*.key
+*.pem
 *.test
 coverage.out
