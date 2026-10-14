@@ -70,6 +70,8 @@ func (s *Server) guard(next http.Handler) http.Handler {
 		r = r.WithContext(context.WithValue(r.Context(), requestIDKey{}, id))
 		w.Header().Set("X-Request-Id", id)
 		w.Header().Set("X-Content-Type-Options", "nosniff")
+		w.Header().Set("X-Frame-Options", "DENY")
+		w.Header().Set("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
 		w.Header().Set("Referrer-Policy", "no-referrer")
 		w.Header().Set("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'")
 		host := r.Host

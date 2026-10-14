@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 	"tradar/internal/storage"
@@ -123,6 +124,38 @@ func TestHTTPBoundaries(t *testing.T) {
 		h.ServeHTTP(w, r)
 		if w.Code != tc.want {
 			t.Errorf("%s %s host=%s body=%s got %d want %d: %s", tc.method, tc.path, tc.host, tc.body, w.Code, tc.want, w.Body)
+		}
+	}
+}
+
+func TestCreateReturnsRevisionAndLimitsPayload(t *testing.T) {
+	h := testServer(t)
+	created := call(h, "POST", "/api/v1/projects", `{"name":"v","canonicalUrl":"https://version.test"}`, "version-intent", "")
+	if created.Header().Get("ETag") != `"1"` {
+		t.Fatalf("missing creation revision: %v", created.Header())
+	}
+	replay := call(h, "POST", "/api/v1/projects", `{"name":"v","canonicalUrl":"https://version.test"}`, "version-intent", "")
+	if replay.Header().Get("ETag") != created.Header().Get("ETag") {
+		t.Fatal("replay changed revision")
+	}
+	oversized := `{"name":"x","canonicalUrl":"https://limit.test","summary":"` + string(bytes.Repeat([]byte("a"), 1<<20)) + `"}`
+	result := call(h, "POST", "/api/v1/projects", oversized, "oversized", "")
+	if result.Code != 413 {
+		t.Fatalf("oversized: %d", result.Code)
+	}
+}
+
+func TestSecurityHeadersApplyToEveryResponse(t *testing.T) {
+	h := testServer(t)
+	response := call(h, "GET", "/healthz", "", "", "")
+	for name, want := range map[string]string{
+		"Content-Security-Policy": "frame-ancestors 'none'",
+		"Permissions-Policy":      "camera=(), microphone=(), geolocation=()",
+		"X-Content-Type-Options":  "nosniff",
+		"X-Frame-Options":         "DENY",
+	} {
+		if got := response.Header().Get(name); !strings.Contains(got, want) {
+			t.Errorf("%s=%q, want it to contain %q", name, got, want)
 		}
 	}
 }

@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -69,6 +70,14 @@ func (s *Server) mutate(w http.ResponseWriter, r *http.Request, scope string, in
 	}
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
+	var versioned struct {
+		Data struct {
+			Revision *int `json:"revision"`
+		} `json:"data"`
+	}
+	if json.Unmarshal(body, &versioned) == nil && versioned.Data.Revision != nil {
+		w.Header().Set("ETag", fmt.Sprintf(`"%d"`, *versioned.Data.Revision))
+	}
 	w.WriteHeader(status)
 	w.Write(body)
 }
