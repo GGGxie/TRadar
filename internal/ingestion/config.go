@@ -240,6 +240,16 @@ func GetSourceView(ctx context.Context, q catalog.Querier, source RemoteSource, 
 	view.LastRunID = nullStringPointer(lastRun)
 	view.LastSuccessfulAt = nullStringPointer(lastSuccess)
 	view.LastObservationAt = nullStringPointer(lastObservation)
+	budget, hasBudget, budgetErr := readEffectiveBudgetState(ctx, q, source, time.Now().UTC())
+	if budgetErr != nil {
+		return SourceView{}, budgetErr
+	}
+	if hasBudget {
+		remaining := budget.RemainingRequests
+		reset := catalog.Timestamp(budget.ResetAt)
+		view.Budget.RemainingRequests = &remaining
+		view.Budget.ResetAt = &reset
+	}
 	return view, nil
 }
 
