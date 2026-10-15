@@ -86,7 +86,7 @@ func TestGitHubExecutorDiscoversRenamesAndKeepsCumulativeWhenHistoryFails(t *tes
 	target, _ := url.Parse(server.URL)
 	transport := &rewriteTransport{target: target}
 	client := &http.Client{Transport: transport}
-	executor := NewGitHubExecutor(db, client, "secret-token", func() time.Time { return now })
+	executor := NewGitHubExecutor(db, client, "", func() time.Time { return now })
 	runner := NewRunner(db, func() time.Time { return now })
 
 	first := createQueuedRun(t, db, GitHub, now)
@@ -184,7 +184,7 @@ func TestGitHubExecutorDiscoversRenamesAndKeepsCumulativeWhenHistoryFails(t *tes
 		if request.URL.Scheme != "https" || request.URL.Host != "api.github.com" {
 			t.Fatalf("non-fixed github target: %s", request.URL)
 		}
-		if request.Header.Get("Accept") != "application/vnd.github+json" || request.Header.Get("X-GitHub-Api-Version") != "2026-03-10" || request.Header.Get("Authorization") != "Bearer secret-token" {
+		if request.Header.Get("Accept") != "application/vnd.github+json" || request.Header.Get("X-GitHub-Api-Version") != "2026-03-10" || request.Header.Get("Authorization") != "" {
 			t.Fatalf("github headers: %v", request.Header)
 		}
 	}
@@ -315,4 +315,56 @@ func TestHackerNewsExecutorKeepsDiscussionIdentityAndSkipReasons(t *testing.T) {
 			t.Fatalf("non-fixed HN target: %s", request.URL)
 		}
 	}
+}
+
+func TestEmptyRemoteResultsAreSuccessfulWithoutInventedProjects(t *testing.T) {
+	t.Run("github", func(t *testing.T) {
+		db := openTestDB(t)
+		now := time.Date(2026, 10, 15, 6, 0, 0, 0, time.UTC)
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
+			if request.URL.Path != "/search/repositories" {
+				t.Errorf("unexpected GitHub empty request: %s", request.URL)
+				http.Error(w, "unexpected", http.StatusNotFound)
+				return
+			}
+			json.NewEncoder(w).Encode(map[string]any{"total_count": 0, "incomplete_results": false, "items": []any{}})
+		}))
+		defer server.Close()
+		target, _ := url.Parse(server.URL)
+		executor := NewGitHubExecutor(db, &http.Client{Transport: &rewriteTransport{target: target}}, "", func() time.Time { return now })
+		run := createQueuedRun(t, db, GitHub, now)
+		if err := NewRunner(db, func() time.Time { return now }).Run(context.Background(), run.ID, executor); err != nil {
+			t.Fatal(err)
+		}
+		stored, err := GetRun(context.Background(), db, run.ID)
+		if err != nil || stored.Status != StatusSucceededEmpty || stored.RequestsMade != 6 || stored.AcceptedItems != 0 || stored.ObservationsWritten != 0 {
+			t.Fatalf("empty GitHub run: %+v err=%v", stored, err)
+		}
+		assertTableCount(t, db, "projects", 0)
+	})
+
+	t.Run("hacker news", func(t *testing.T) {
+		db := openTestDB(t)
+		now := time.Date(2026, 10, 15, 6, 30, 0, 0, time.UTC)
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
+			if !strings.HasSuffix(request.URL.Path, "stories.json") {
+				t.Errorf("unexpected HN empty request: %s", request.URL)
+				http.Error(w, "unexpected", http.StatusNotFound)
+				return
+			}
+			json.NewEncoder(w).Encode([]int{})
+		}))
+		defer server.Close()
+		target, _ := url.Parse(server.URL)
+		executor := NewHackerNewsExecutor(db, &http.Client{Transport: &rewriteTransport{target: target}}, func() time.Time { return now })
+		run := createQueuedRun(t, db, HackerNews, now)
+		if err := NewRunner(db, func() time.Time { return now }).Run(context.Background(), run.ID, executor); err != nil {
+			t.Fatal(err)
+		}
+		stored, err := GetRun(context.Background(), db, run.ID)
+		if err != nil || stored.Status != StatusSucceededEmpty || stored.RequestsMade != 3 || stored.AcceptedItems != 0 || stored.ObservationsWritten != 0 {
+			t.Fatalf("empty HN run: %+v err=%v", stored, err)
+		}
+		assertTableCount(t, db, "projects", 0)
+	})
 }
