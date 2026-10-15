@@ -187,6 +187,16 @@ func ListEvidence(ctx context.Context, q Querier, projectID string, filter Evide
 	return items, total, rows.Err()
 }
 
+func GetEvidence(ctx context.Context, q Querier, id string) (Evidence, error) {
+	item, err := scanEvidence(q.QueryRowContext(ctx, `SELECT `+evidenceColumns+`,
+		COALESCE((SELECT json_group_array(observation_id) FROM evidence_observations eo WHERE eo.evidence_id=evidence.id),'[]')
+		FROM evidence WHERE id=?`, id))
+	if errors.Is(err, sql.ErrNoRows) {
+		return Evidence{}, fault.Missing("证据")
+	}
+	return item, err
+}
+
 func scanEvidence(row scanner) (Evidence, error) {
 	var item Evidence
 	var observationJSON string

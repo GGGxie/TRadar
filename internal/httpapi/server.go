@@ -58,6 +58,11 @@ func New(db *sql.DB, config Config) http.Handler {
 	mux.HandleFunc("/api/v1/projects/{id}/sources", s.projectSources)
 	mux.HandleFunc("/api/v1/projects/{id}/observations", s.projectObservations)
 	mux.HandleFunc("/api/v1/projects/{id}/trend", s.projectTrend)
+	mux.HandleFunc("/api/v1/projects/{id}/analyses", s.projectAnalyses)
+	mux.HandleFunc("/api/v1/projects/{id}/analysis-runs", s.projectAnalysisRuns)
+	mux.HandleFunc("/api/v1/analyses/{id}", s.analysisVersion)
+	mux.HandleFunc("/api/v1/analysis-runs/{id}", s.analysisRun)
+	mux.HandleFunc("/api/v1/analysis-capabilities", s.analysisCapabilities)
 	mux.HandleFunc("/api/v1/source-records/{id}", s.sourceRecord)
 	mux.HandleFunc("/api/v1/sources", s.remoteSources)
 	mux.HandleFunc("/api/v1/sources/{source}", s.remoteSource)
@@ -195,7 +200,7 @@ func writeError(w http.ResponseWriter, r *http.Request, err error) {
 		if app.RetryAt != nil {
 			w.Header().Set("Retry-After", app.RetryAt.UTC().Format(http.TimeFormat))
 		}
-		statuses := map[string]int{"VALIDATION_ERROR": 422, "NOT_FOUND": 404, "VERSION_CONFLICT": 412, "PRECONDITION_REQUIRED": 428, "IDEMPOTENCY_MISMATCH": 422, "IDEMPOTENCY_IN_PROGRESS": 409, "SOURCE_BUSY": 409, "SOURCE_DISABLED": 422, "SOURCE_CREDENTIALS_REQUIRED": 422, "SOURCE_RATE_LIMITED": 429, "BAD_REQUEST": 400, "FORBIDDEN": 403, "UNAUTHORIZED": 401, "UNSUPPORTED_MEDIA_TYPE": 415, "PAYLOAD_TOO_LARGE": 413, "METHOD_NOT_ALLOWED": 405, "CONFLICT": 409}
+		statuses := map[string]int{"VALIDATION_ERROR": 422, "NOT_FOUND": 404, "VERSION_CONFLICT": 412, "PROJECT_CONTEXT_CHANGED": 412, "PRECONDITION_REQUIRED": 428, "IDEMPOTENCY_MISMATCH": 422, "IDEMPOTENCY_IN_PROGRESS": 409, "SOURCE_BUSY": 409, "SOURCE_DISABLED": 422, "SOURCE_CREDENTIALS_REQUIRED": 422, "SOURCE_RATE_LIMITED": 429, "MODEL_DISABLED": 503, "BAD_REQUEST": 400, "FORBIDDEN": 403, "UNAUTHORIZED": 401, "UNSUPPORTED_MEDIA_TYPE": 415, "PAYLOAD_TOO_LARGE": 413, "METHOD_NOT_ALLOWED": 405, "CONFLICT": 409}
 		if n, ok := statuses[code]; ok {
 			status = n
 		}
