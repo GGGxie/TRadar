@@ -21,11 +21,13 @@ import (
 
 	"github.com/google/uuid"
 	"tradar/internal/fault"
+	"tradar/internal/ingestion"
 )
 
 type Config struct {
 	WebDir, AccessToken, AllowedHost, DevOrigin     string
 	HasGitHubCredentials, HasProductHuntCredentials bool
+	QueueIngestionRun                               func(ingestion.IngestionRun) error
 }
 type Server struct {
 	db              *sql.DB

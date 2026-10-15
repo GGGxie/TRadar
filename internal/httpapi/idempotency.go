@@ -16,21 +16,21 @@ import (
 // mutate stores the response and the side effect in one serialized transaction.
 // Asynchronous operations will commit only their intent here, then run separately.
 func (s *Server) mutate(w http.ResponseWriter, r *http.Request, scope string, input any, fn func(*sql.Tx) (int, any, error)) {
-	s.mutateResponse(w, r, scope, input, fn, nil)
+	_ = s.mutateResponse(w, r, scope, input, fn, nil)
 }
 
-func (s *Server) mutateResponse(w http.ResponseWriter, r *http.Request, scope string, input any, fn func(*sql.Tx) (int, any, error), beforeWrite func(http.Header, []byte)) {
+func (s *Server) mutateResponse(w http.ResponseWriter, r *http.Request, scope string, input any, fn func(*sql.Tx) (int, any, error), beforeWrite func(http.Header, []byte)) bool {
 	key := r.Header.Get("Idempotency-Key")
 	if len(key) < 1 || len(key) > 128 || strings.IndexFunc(key, func(c rune) bool { return c < 33 || c > 126 }) >= 0 {
 		writeError(w, r, fault.Field("Idempotency-Key", "创建请求需要 1–128 字符的稳定重试标识"))
-		return
+		return false
 	}
 	mutationID := scope + "\x00" + key
 	s.mutationMu.Lock()
 	if _, active := s.activeMutations[mutationID]; active {
 		s.mutationMu.Unlock()
 		writeError(w, r, fault.New("IDEMPOTENCY_IN_PROGRESS", "此请求正在处理"))
-		return
+		return false
 	}
 	s.activeMutations[mutationID] = struct{}{}
 	s.mutationMu.Unlock()
@@ -42,12 +42,13 @@ func (s *Server) mutateResponse(w http.ResponseWriter, r *http.Request, scope st
 	canonical, err := json.Marshal(input)
 	if err != nil {
 		writeError(w, r, err)
-		return
+		return false
 	}
 	sum := sha256.Sum256(canonical)
 	hash := hex.EncodeToString(sum[:])
 	status := 0
 	var body []byte
+	created := false
 	err = storage.WithTx(r.Context(), s.db, func(tx *sql.Tx) error {
 		claimed, err := tx.ExecContext(r.Context(), "INSERT INTO idempotency(scope,key,request_hash,status,body) VALUES(?,?,?,0,'null') ON CONFLICT(scope,key) DO NOTHING", scope, key, hash)
 		if err != nil {
@@ -75,6 +76,7 @@ func (s *Server) mutateResponse(w http.ResponseWriter, r *http.Request, scope st
 		if err != nil {
 			return err
 		}
+		created = true
 		body, err = json.Marshal(response{Data: value})
 		if err != nil {
 			return err
@@ -84,7 +86,7 @@ func (s *Server) mutateResponse(w http.ResponseWriter, r *http.Request, scope st
 	})
 	if err != nil {
 		writeError(w, r, err)
-		return
+		return false
 	}
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
@@ -101,4 +103,5 @@ func (s *Server) mutateResponse(w http.ResponseWriter, r *http.Request, scope st
 	}
 	w.WriteHeader(status)
 	w.Write(body)
+	return created
 }

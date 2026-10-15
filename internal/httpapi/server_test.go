@@ -12,7 +12,9 @@ import (
 	"sync"
 	"testing"
 	"time"
+
 	"tradar/internal/catalog"
+	"tradar/internal/ingestion"
 	"tradar/internal/storage"
 )
 
@@ -437,5 +439,24 @@ func TestConcurrentIngestionRunReplayCreatesOneTask(t *testing.T) {
 	listed := call(handler, http.MethodGet, "/api/v1/ingestion-runs?source=HACKER_NEWS", "", "", "")
 	if listed.Code != http.StatusOK || !strings.Contains(listed.Body.String(), `"totalItems":1`) {
 		t.Fatalf("concurrent task count: %d %s", listed.Code, listed.Body)
+	}
+}
+
+func TestNewIngestionRunIsQueuedOnceForRuntime(t *testing.T) {
+	db, err := storage.Open(filepath.Join(t.TempDir(), "radar.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	var queued []ingestion.IngestionRun
+	handler := New(db, Config{QueueIngestionRun: func(run ingestion.IngestionRun) error {
+		queued = append(queued, run)
+		return nil
+	}})
+	body := `{"source":"HACKER_NEWS"}`
+	created := call(handler, http.MethodPost, "/api/v1/ingestion-runs", body, "runtime-queue", "")
+	replayed := call(handler, http.MethodPost, "/api/v1/ingestion-runs", body, "runtime-queue", "")
+	if created.Code != http.StatusAccepted || replayed.Code != http.StatusAccepted || len(queued) != 1 || queued[0].Source != ingestion.HackerNews || queued[0].Status != ingestion.StatusQueued {
+		t.Fatalf("created=%d replayed=%d queued=%+v", created.Code, replayed.Code, queued)
 	}
 }

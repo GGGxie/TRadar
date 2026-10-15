@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 
 	"tradar/internal/fault"
@@ -110,10 +111,12 @@ func (s *Server) ingestionRuns(w http.ResponseWriter, r *http.Request) {
 		}
 		credentials := s.credentials()
 		hasCredentials := input.Source == ingestion.GitHub && credentials.GitHub || input.Source == ingestion.ProductHunt && credentials.ProductHunt
-		s.mutateResponse(w, r, "ingestion-runs:create", input, func(tx *sql.Tx) (int, any, error) {
+		var createdRun ingestion.IngestionRun
+		created := s.mutateResponse(w, r, "ingestion-runs:create", input, func(tx *sql.Tx) (int, any, error) {
 			run, err := ingestion.CreateRun(r.Context(), tx, ingestion.CreateRunInput{
 				Source: input.Source, Trigger: ingestion.TriggerManual, HasCredentials: hasCredentials,
 			}, s.now())
+			createdRun = run
 			return http.StatusAccepted, run, err
 		}, func(header http.Header, body []byte) {
 			var stored struct {
@@ -125,6 +128,11 @@ func (s *Server) ingestionRuns(w http.ResponseWriter, r *http.Request) {
 				header.Set("Location", "/api/v1/ingestion-runs/"+stored.Data.ID)
 			}
 		})
+		if created && s.config.QueueIngestionRun != nil {
+			if err := s.config.QueueIngestionRun(createdRun); err != nil {
+				slog.Error("queue ingestion run failed", "runId", createdRun.ID, "source", createdRun.Source, "error", err)
+			}
+		}
 	default:
 		methodError(w, r)
 	}

@@ -46,15 +46,27 @@ func run() error {
 	} else if interrupted > 0 {
 		slog.Warn("interrupted unfinished ingestion tasks", "count", interrupted)
 	}
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	runtimeContext, stopRuntime := context.WithCancel(ctx)
+	githubToken := os.Getenv("TRADAR_GITHUB_TOKEN")
+	productHuntToken := os.Getenv("TRADAR_PRODUCT_HUNT_TOKEN")
+	ingestionRuntime := ingestion.NewRuntime(db, ingestion.RuntimeConfig{
+		GitHubToken: githubToken, ProductHuntToken: productHuntToken,
+	})
+	ingestionRuntime.Start(runtimeContext)
+	defer func() {
+		stopRuntime()
+		ingestionRuntime.Wait()
+	}()
 	cfg := httpapi.Config{
 		WebDir: env("TRADAR_WEB_DIR", "web/dist"), AccessToken: token,
 		DevOrigin: os.Getenv("TRADAR_DEV_ORIGIN"), AllowedHost: os.Getenv("TRADAR_ALLOWED_HOST"),
-		HasGitHubCredentials:      os.Getenv("TRADAR_GITHUB_TOKEN") != "",
-		HasProductHuntCredentials: os.Getenv("TRADAR_PRODUCT_HUNT_TOKEN") != "",
+		HasGitHubCredentials:      githubToken != "",
+		HasProductHuntCredentials: productHuntToken != "",
+		QueueIngestionRun:         ingestionRuntime.Enqueue,
 	}
 	server := &http.Server{Addr: addr, Handler: httpapi.New(db, cfg), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 15 * time.Second, WriteTimeout: 30 * time.Second, IdleTimeout: 60 * time.Second, MaxHeaderBytes: 16 << 10}
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
 	result := make(chan error, 1)
 	go func() { slog.Info("TRadar listening", "address", addr); result <- server.ListenAndServe() }()
 	select {
