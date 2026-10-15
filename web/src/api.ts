@@ -130,6 +130,44 @@ export interface IngestionRun {
   nextRetryAt: string | null;
   errors: RunError[];
 }
+export interface GrowthResult {
+  status: "READY" | "INSUFFICIENT_HISTORY" | "STALE" | "UNSUPPORTED";
+  from: string | null;
+  to: string | null;
+  durationHours: number | null;
+  delta: number | null;
+  ratePerDay: number | null;
+  growthRatio: number | null;
+  observationIds: string[];
+}
+export interface TrendResult {
+  projectId: string;
+  asOf: string;
+  algorithmVersion: "trend-v1";
+  status: GrowthResult["status"];
+  score: number | null;
+  isPartial: boolean;
+  primarySignal: {
+    sourceRecordId: string;
+    source: RemoteSource;
+    metric: string;
+    latestValue: number;
+    latestObservedAt: string;
+  } | null;
+  growth: GrowthResult;
+  persistence: {
+    status: GrowthResult["status"];
+    positiveWindows: number | null;
+    validWindows: number;
+    totalWindows: 7;
+  };
+  crossSource: { platforms: RemoteSource[]; sourceRecordIds: string[] };
+  alert: { kind: string; threshold: number; observationIds: string[] } | null;
+}
+export interface ProjectTrend {
+  project: Project;
+  trend: TrendResult;
+}
 export class ApiError extends Error {
   constructor(
     message: string,

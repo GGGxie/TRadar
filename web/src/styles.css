@@ -393,6 +393,9 @@ textarea {
 .category-filter {
   margin-left: auto;
 }
+.category-filter + .category-filter {
+  margin-left: 0;
+}
 .table-head,
 .project-row {
   display: grid;
@@ -458,6 +461,20 @@ textarea {
   padding: 6px 8px;
   border-radius: 4px;
   white-space: nowrap;
+}
+.trend-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  color: var(--muted);
+  font-size: 11px;
+}
+.trend-summary strong {
+  color: var(--accent);
+  font-size: 15px;
+}
+.trend-summary small {
+  font-size: 10px;
 }
 .time-label {
   font-size: 11px;
@@ -935,12 +952,8 @@ textarea {
   }
   .table-head,
   .project-row {
-    grid-template-columns: minmax(0, 1fr) 105px 20px;
+    grid-template-columns: minmax(0, 1fr) 105px 110px 20px;
     gap: 16px;
-  }
-  .time-label,
-  .table-head > span:nth-child(3) {
-    display: none;
   }
   .form-grid {
     grid-template-columns: 1fr;
@@ -1081,6 +1094,11 @@ textarea {
     grid-column: 1;
     margin-left: 52px;
     grid-row: 2;
+  }
+  .project-row .trend-summary {
+    grid-column: 1;
+    grid-row: 3;
+    margin-left: 52px;
   }
   .project-row .row-arrow {
     grid-column: 2;

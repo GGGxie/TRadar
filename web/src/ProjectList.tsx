@@ -1,11 +1,10 @@
 import { useEffect, useState, type FormEvent } from "react";
 import {
   categories,
-  formatDate,
   projectHost,
   request,
   type Page,
-  type Project,
+  type ProjectTrend,
 } from "./api";
 import { ProjectForm } from "./ProjectForm";
 export function ProjectList() {
@@ -13,7 +12,9 @@ export function ProjectList() {
   const [search, setSearch] = useState("");
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("");
-  const [data, setData] = useState<Page<Project> | null>(null);
+  const [source, setSource] = useState("");
+  const [trendWindow, setTrendWindow] = useState<"24h" | "7d">("24h");
+  const [data, setData] = useState<Page<ProjectTrend> | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [refresh, setRefresh] = useState(0);
@@ -27,8 +28,12 @@ export function ProjectList() {
       pageSize: "20",
       q: query,
       category,
+      source,
+      window: trendWindow,
     });
-    request<Page<Project>>(`/projects?${params}`, { signal: controller.signal })
+    request<Page<ProjectTrend>>(`/radar?${params}`, {
+      signal: controller.signal,
+    })
       .then(setData)
       .catch((error) => {
         if (!controller.signal.aborted) setError(error.message);
@@ -37,7 +42,7 @@ export function ProjectList() {
         if (!controller.signal.aborted) setLoading(false);
       });
     return () => controller.abort();
-  }, [page, query, category, refresh]);
+  }, [page, query, category, source, trendWindow, refresh]);
   function filter(event: FormEvent) {
     event.preventDefault();
     setPage(1);
@@ -125,6 +130,36 @@ export function ProjectList() {
               ))}
             </select>
           </label>
+          <label className="category-filter">
+            <span className="sr-only">筛选来源</span>
+            <select
+              aria-label="筛选来源"
+              value={source}
+              onChange={(event) => {
+                setSource(event.target.value);
+                setPage(1);
+              }}
+            >
+              <option value="">全部来源</option>
+              <option value="GITHUB">GitHub</option>
+              <option value="HACKER_NEWS">Hacker News</option>
+              <option value="PRODUCT_HUNT">Product Hunt</option>
+            </select>
+          </label>
+          <label className="category-filter">
+            <span className="sr-only">趋势窗口</span>
+            <select
+              aria-label="趋势窗口"
+              value={trendWindow}
+              onChange={(event) => {
+                setTrendWindow(event.target.value as "24h" | "7d");
+                setPage(1);
+              }}
+            >
+              <option value="24h">24 小时趋势</option>
+              <option value="7d">7 天趋势</option>
+            </select>
+          </label>
         </form>
         {error ? (
           <div className="empty-state">
@@ -148,10 +183,10 @@ export function ProjectList() {
               <div className="table-head">
                 <span>项目 / 需求</span>
                 <span>方向</span>
-                <span>首次发现</span>
+                <span>趋势 / 证据</span>
                 <span />
               </div>
-              {data.data.map((project) => (
+              {data.data.map(({ project, trend }) => (
                 <a
                   className="project-row"
                   key={project.id}
@@ -169,8 +204,20 @@ export function ProjectList() {
                     </div>
                   </div>
                   <span className="tag">{categories[project.category]}</span>
-                  <span className="time-label">
-                    {formatDate(project.firstSeenAt)}
+                  <span className="trend-summary">
+                    {trend.score == null ? (
+                      "待积累"
+                    ) : (
+                      <>
+                        <strong>{trend.score.toFixed(1)}</strong>
+                        {trend.growth.delta != null && (
+                          <small>
+                            净增 {trend.growth.delta > 0 ? "+" : ""}
+                            {trend.growth.delta}
+                          </small>
+                        )}
+                      </>
+                    )}
                   </span>
                   <span aria-hidden="true" className="row-arrow">
                     ↗
@@ -205,13 +252,17 @@ export function ProjectList() {
             <div className="empty-radar" aria-hidden="true">
               <span />
             </div>
-            <h3>{query || category ? "没有匹配的项目" : "给好奇心一个起点"}</h3>
+            <h3>
+              {query || category || source
+                ? "没有匹配的项目"
+                : "给好奇心一个起点"}
+            </h3>
             <p>
-              {query || category
+              {query || category || source
                 ? "换一个关键词或方向，继续寻找。"
                 : "先记录一个项目，再逐步了解它的需求、技术和商业逻辑。"}
             </p>
-            {!query && !category && (
+            {!query && !category && !source && (
               <button
                 className="secondary"
                 onClick={() => setCreating(true)}

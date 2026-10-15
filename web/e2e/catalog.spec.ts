@@ -95,6 +95,16 @@ test("create, read, edit and reload a project with no unexpected dialog", async 
     page.getByRole("heading", { name: "Edge Signal", exact: true }),
   ).toBeVisible();
   await expect(page.getByText("1 个匹配项目", { exact: true })).toBeVisible();
+  await page.getByLabel("趋势窗口").selectOption("7d");
+  await expect(
+    page.getByRole("heading", { name: "Edge Signal", exact: true }),
+  ).toBeVisible();
+  await page.getByLabel("筛选来源").selectOption("GITHUB");
+  await expect(page.getByText("没有匹配的项目", { exact: true })).toBeVisible();
+  await page.getByLabel("筛选来源").selectOption("");
+  await expect(
+    page.getByRole("heading", { name: "Edge Signal", exact: true }),
+  ).toBeVisible();
   const results = await new AxeBuilder({ page }).analyze();
   expect(results.violations).toEqual([]);
   expect(errors).toEqual([]);
