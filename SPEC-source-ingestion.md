@@ -1,8 +1,8 @@
 # Spec: 信息源采集与任务运行
 
 状态：**实施中**，2026-10-13 建立，2026-10-15 更新。来源配置、采集任务状态、原子幂等、
-事务 checkpoint、重启中断及 GH/HN 适配器已由本地 fixture 验证；预算、调度、运行时触发接线、
-PH、来源界面及真实外部冒烟仍按任务清单推进。
+事务 checkpoint、重启中断、GH/HN 适配器、持久化预算、受限重试、固定目标传输和调度去重
+已由本地 fixture 验证；运行时触发接线、PH、来源界面及真实外部冒烟仍按任务清单推进。
 模块 ID：`source-ingestion`。范围来自 [能力图](CAPABILITY-MAP.md)，仅依赖
 `project-catalog`；共享约束采用 [spec-common](docs/spec-common.md)。
 
