@@ -111,7 +111,7 @@ func TestConcurrentBudgetClaimsCannotExceedLimit(t *testing.T) {
 func TestProviderLimitCanTightenLocalBudget(t *testing.T) {
 	db := openTestDB(t)
 	ctx := context.Background()
-	now := time.Date(2026, 10, 15, 10, 0, 0, 0, time.UTC)
+	now := time.Now().UTC()
 	run := createQueuedRun(t, db, GitHub, now)
 	if err := RecordProviderBudget(ctx, db, GitHub, 0, now.Add(20*time.Minute), now); err != nil {
 		t.Fatal(err)

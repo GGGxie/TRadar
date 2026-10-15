@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"tradar/internal/catalog"
-	"tradar/internal/storage"
 )
 
 func TestSchedulerCatchesUpOnceAndKeepsSourcesIndependent(t *testing.T) {
@@ -110,20 +109,6 @@ func TestConcurrentSchedulerTicksCreateOneIntent(t *testing.T) {
 func setNextRetry(t *testing.T, db *sql.DB, source RemoteSource, retryAt time.Time) {
 	t.Helper()
 	if _, err := db.Exec(`UPDATE source_configs SET next_retry_at=? WHERE source=?`, retryAt.UTC().Format(time.RFC3339Nano), source); err != nil {
-		t.Fatal(err)
-	}
-}
-
-func finishQueuedRun(t *testing.T, db *sql.DB, id string, now time.Time) {
-	t.Helper()
-	err := storage.WithTx(context.Background(), db, func(tx *sql.Tx) error {
-		if _, startErr := StartRun(context.Background(), tx, id, now); startErr != nil {
-			return startErr
-		}
-		_, finishErr := FinishRun(context.Background(), tx, id, FinishRunInput{Status: StatusSucceededEmpty}, now)
-		return finishErr
-	})
-	if err != nil {
 		t.Fatal(err)
 	}
 }
