@@ -499,3 +499,24 @@ func TestManualGitHubRunReturnsRateLimitBeforeQueueing(t *testing.T) {
 		t.Fatalf("claims=%d err=%v", claims, err)
 	}
 }
+
+func TestRadarHTTPValidatesWindowAndAsOf(t *testing.T) {
+	handler := testServer(t)
+	empty := call(handler, http.MethodGet, "/api/v1/radar?window=7d", "", "", "")
+	if empty.Code != http.StatusOK || !strings.Contains(empty.Body.String(), `"totalItems":0`) {
+		t.Fatalf("empty radar: %d %s", empty.Code, empty.Body)
+	}
+	invalidWindow := call(handler, http.MethodGet, "/api/v1/radar?window=30d", "", "", "")
+	if invalidWindow.Code != http.StatusUnprocessableEntity || !strings.Contains(invalidWindow.Body.String(), `"window"`) {
+		t.Fatalf("invalid window: %d %s", invalidWindow.Code, invalidWindow.Body)
+	}
+	future := time.Now().UTC().Add(time.Hour).Format(time.RFC3339Nano)
+	invalidTime := call(handler, http.MethodGet, "/api/v1/radar?asOf="+future, "", "", "")
+	if invalidTime.Code != http.StatusUnprocessableEntity || !strings.Contains(invalidTime.Body.String(), `"asOf"`) {
+		t.Fatalf("future asOf: %d %s", invalidTime.Code, invalidTime.Body)
+	}
+	missing := call(handler, http.MethodGet, "/api/v1/projects/missing/trend", "", "", "")
+	if missing.Code != http.StatusNotFound {
+		t.Fatalf("missing trend: %d %s", missing.Code, missing.Body)
+	}
+}
