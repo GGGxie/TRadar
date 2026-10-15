@@ -15,6 +15,7 @@ type ExecutionResult struct {
 	IsTruncated  bool
 	NextRetryAt  *time.Time
 	Errors       []RunError
+	Warnings     []RunError
 }
 
 type Executor interface {
@@ -68,10 +69,14 @@ func (r *Runner) Run(ctx context.Context, id string, executor Executor) error {
 	} else if latest.AcceptedItems == 0 && latest.ObservationsWritten == 0 {
 		status = StatusSucceededEmpty
 	}
+	storedErrors := append(append([]RunError(nil), result.Errors...), result.Warnings...)
+	if len(storedErrors) > 50 {
+		storedErrors = storedErrors[:50]
+	}
 	finishErr := storage.WithTx(ctx, r.db, func(tx *sql.Tx) error {
 		_, err := FinishRun(ctx, tx, id, FinishRunInput{
 			Status: status, RequestsMade: result.RequestsMade, IsTruncated: result.IsTruncated,
-			NextRetryAt: result.NextRetryAt, Errors: result.Errors,
+			NextRetryAt: result.NextRetryAt, Errors: storedErrors,
 		}, r.now())
 		return err
 	})
