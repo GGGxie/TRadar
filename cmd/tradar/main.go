@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"tradar/internal/httpapi"
+	"tradar/internal/ingestion"
 	"tradar/internal/storage"
 )
 
@@ -40,7 +41,17 @@ func run() error {
 		return err
 	}
 	defer db.Close()
-	cfg := httpapi.Config{WebDir: env("TRADAR_WEB_DIR", "web/dist"), AccessToken: token, DevOrigin: os.Getenv("TRADAR_DEV_ORIGIN"), AllowedHost: os.Getenv("TRADAR_ALLOWED_HOST")}
+	if interrupted, recoverErr := ingestion.RecoverInterrupted(context.Background(), db, time.Now()); recoverErr != nil {
+		return fmt.Errorf("recover ingestion tasks: %w", recoverErr)
+	} else if interrupted > 0 {
+		slog.Warn("interrupted unfinished ingestion tasks", "count", interrupted)
+	}
+	cfg := httpapi.Config{
+		WebDir: env("TRADAR_WEB_DIR", "web/dist"), AccessToken: token,
+		DevOrigin: os.Getenv("TRADAR_DEV_ORIGIN"), AllowedHost: os.Getenv("TRADAR_ALLOWED_HOST"),
+		HasGitHubCredentials:      os.Getenv("TRADAR_GITHUB_TOKEN") != "",
+		HasProductHuntCredentials: os.Getenv("TRADAR_PRODUCT_HUNT_TOKEN") != "",
+	}
 	server := &http.Server{Addr: addr, Handler: httpapi.New(db, cfg), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 15 * time.Second, WriteTimeout: 30 * time.Second, IdleTimeout: 60 * time.Second, MaxHeaderBytes: 16 << 10}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()

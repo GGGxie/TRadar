@@ -16,17 +16,23 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
 	"tradar/internal/fault"
 )
 
-type Config struct{ WebDir, AccessToken, AllowedHost, DevOrigin string }
+type Config struct {
+	WebDir, AccessToken, AllowedHost, DevOrigin     string
+	HasGitHubCredentials, HasProductHuntCredentials bool
+}
 type Server struct {
-	db     *sql.DB
-	config Config
-	now    func() time.Time
+	db              *sql.DB
+	config          Config
+	now             func() time.Time
+	mutationMu      sync.Mutex
+	activeMutations map[string]struct{}
 }
 type requestIDKey struct{}
 
@@ -42,7 +48,7 @@ type response struct {
 }
 
 func New(db *sql.DB, config Config) http.Handler {
-	s := &Server{db: db, config: config, now: time.Now}
+	s := &Server{db: db, config: config, now: time.Now, activeMutations: make(map[string]struct{})}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/v1/projects", s.projects)
 	mux.HandleFunc("/api/v1/projects/{id}", s.project)
@@ -50,6 +56,10 @@ func New(db *sql.DB, config Config) http.Handler {
 	mux.HandleFunc("/api/v1/projects/{id}/sources", s.projectSources)
 	mux.HandleFunc("/api/v1/projects/{id}/observations", s.projectObservations)
 	mux.HandleFunc("/api/v1/source-records/{id}", s.sourceRecord)
+	mux.HandleFunc("/api/v1/sources", s.remoteSources)
+	mux.HandleFunc("/api/v1/sources/{source}", s.remoteSource)
+	mux.HandleFunc("/api/v1/ingestion-runs", s.ingestionRuns)
+	mux.HandleFunc("/api/v1/ingestion-runs/{id}", s.ingestionRun)
 	mux.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) { writeError(w, r, fault.Missing("接口")) })
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != "GET" {
@@ -178,7 +188,7 @@ func writeError(w http.ResponseWriter, r *http.Request, err error) {
 	var app *fault.Error
 	if errors.As(err, &app) {
 		code, message, fields = app.Code, app.Message, app.Fields
-		statuses := map[string]int{"VALIDATION_ERROR": 422, "NOT_FOUND": 404, "VERSION_CONFLICT": 412, "PRECONDITION_REQUIRED": 428, "IDEMPOTENCY_MISMATCH": 422, "BAD_REQUEST": 400, "FORBIDDEN": 403, "UNAUTHORIZED": 401, "UNSUPPORTED_MEDIA_TYPE": 415, "PAYLOAD_TOO_LARGE": 413, "METHOD_NOT_ALLOWED": 405, "CONFLICT": 409}
+		statuses := map[string]int{"VALIDATION_ERROR": 422, "NOT_FOUND": 404, "VERSION_CONFLICT": 412, "PRECONDITION_REQUIRED": 428, "IDEMPOTENCY_MISMATCH": 422, "IDEMPOTENCY_IN_PROGRESS": 409, "SOURCE_BUSY": 409, "SOURCE_DISABLED": 422, "SOURCE_CREDENTIALS_REQUIRED": 422, "SOURCE_RATE_LIMITED": 429, "BAD_REQUEST": 400, "FORBIDDEN": 403, "UNAUTHORIZED": 401, "UNSUPPORTED_MEDIA_TYPE": 415, "PAYLOAD_TOO_LARGE": 413, "METHOD_NOT_ALLOWED": 405, "CONFLICT": 409}
 		if n, ok := statuses[code]; ok {
 			status = n
 		}

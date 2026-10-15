@@ -316,3 +316,126 @@ func TestSourceAndObservationHTTPFollowCurrentAssociation(t *testing.T) {
 		t.Fatalf("wide window accepted: %d %s", tooWide.Code, tooWide.Body)
 	}
 }
+
+func TestSourceSettingsAndIngestionRunHTTPContracts(t *testing.T) {
+	handler := testServer(t)
+
+	sources := call(handler, http.MethodGet, "/api/v1/sources", "", "", "")
+	if sources.Code != http.StatusOK {
+		t.Fatalf("list sources: %d %s", sources.Code, sources.Body)
+	}
+	var sourcePage struct {
+		Data []struct {
+			Source       string `json:"source"`
+			Availability string `json:"availability"`
+			Config       struct {
+				IsEnabled        bool     `json:"isEnabled"`
+				Keywords         []string `json:"keywords"`
+				TrackedSourceIDs []string `json:"trackedSourceRecordIds"`
+			} `json:"config"`
+		} `json:"data"`
+		Pagination struct {
+			TotalItems int `json:"totalItems"`
+		} `json:"pagination"`
+	}
+	if err := json.Unmarshal(sources.Body.Bytes(), &sourcePage); err != nil || len(sourcePage.Data) != 3 || sourcePage.Pagination.TotalItems != 3 {
+		t.Fatalf("source response: %+v err=%v", sourcePage, err)
+	}
+	if sourcePage.Data[0].Source != "GITHUB" || !sourcePage.Data[0].Config.IsEnabled || sourcePage.Data[0].Config.Keywords == nil || sourcePage.Data[0].Config.TrackedSourceIDs == nil {
+		t.Fatalf("github source shape: %+v", sourcePage.Data[0])
+	}
+	if sourcePage.Data[2].Availability != "DISABLED" {
+		t.Fatalf("product hunt availability: %+v", sourcePage.Data[2])
+	}
+
+	missingRevision := call(handler, http.MethodPatch, "/api/v1/sources/GITHUB", `{"intervalMinutes":30}`, "", "")
+	if missingRevision.Code != http.StatusPreconditionRequired {
+		t.Fatalf("missing source revision: %d %s", missingRevision.Code, missingRevision.Body)
+	}
+	crossSource := call(handler, http.MethodPatch, "/api/v1/sources/GITHUB", `{"itemsPerFeed":10}`, "", `"1"`)
+	if crossSource.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("cross source field: %d %s", crossSource.Code, crossSource.Body)
+	}
+	updated := call(handler, http.MethodPatch, "/api/v1/sources/GITHUB", `{"intervalMinutes":30}`, "", `"1"`)
+	if updated.Code != http.StatusOK || updated.Header().Get("ETag") != `"2"` || !strings.Contains(updated.Body.String(), `"intervalMinutes":30`) {
+		t.Fatalf("updated source: %d %s %v", updated.Code, updated.Body, updated.Header())
+	}
+
+	body := `{"source":"GITHUB"}`
+	created := call(handler, http.MethodPost, "/api/v1/ingestion-runs", body, "collect-github", "")
+	if created.Code != http.StatusAccepted || created.Header().Get("Location") == "" {
+		t.Fatalf("create run: %d %s %v", created.Code, created.Body, created.Header())
+	}
+	replayed := call(handler, http.MethodPost, "/api/v1/ingestion-runs", body, "collect-github", "")
+	if replayed.Code != http.StatusAccepted || replayed.Body.String() != created.Body.String() || replayed.Header().Get("Location") != created.Header().Get("Location") {
+		t.Fatalf("run replay: %d %s %v", replayed.Code, replayed.Body, replayed.Header())
+	}
+	mismatch := call(handler, http.MethodPost, "/api/v1/ingestion-runs", `{"source":"HACKER_NEWS"}`, "collect-github", "")
+	if mismatch.Code != http.StatusUnprocessableEntity || !strings.Contains(mismatch.Body.String(), `"IDEMPOTENCY_MISMATCH"`) {
+		t.Fatalf("run mismatch: %d %s", mismatch.Code, mismatch.Body)
+	}
+	busy := call(handler, http.MethodPost, "/api/v1/ingestion-runs", body, "new-github-intent", "")
+	if busy.Code != http.StatusConflict || !strings.Contains(busy.Body.String(), `"SOURCE_BUSY"`) {
+		t.Fatalf("source busy: %d %s", busy.Code, busy.Body)
+	}
+
+	location := created.Header().Get("Location")
+	read := call(handler, http.MethodGet, location, "", "", "")
+	if read.Code != http.StatusOK || !strings.Contains(read.Body.String(), `"status":"QUEUED"`) || !strings.Contains(read.Body.String(), `"configRevision":2`) {
+		t.Fatalf("read run: %d %s", read.Code, read.Body)
+	}
+	listed := call(handler, http.MethodGet, "/api/v1/ingestion-runs?source=GITHUB&status=QUEUED", "", "", "")
+	if listed.Code != http.StatusOK || !strings.Contains(listed.Body.String(), `"totalItems":1`) {
+		t.Fatalf("list runs: %d %s", listed.Code, listed.Body)
+	}
+	invalidFilter := call(handler, http.MethodGet, "/api/v1/ingestion-runs?status=SUCCESS", "", "", "")
+	if invalidFilter.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("invalid run filter: %d %s", invalidFilter.Code, invalidFilter.Body)
+	}
+}
+
+func TestConcurrentIngestionRunReplayCreatesOneTask(t *testing.T) {
+	handler := testServer(t)
+	const attempts = 8
+	responses := make(chan *httptest.ResponseRecorder, attempts)
+	var group sync.WaitGroup
+	for range attempts {
+		group.Add(1)
+		go func() {
+			defer group.Done()
+			responses <- call(handler, http.MethodPost, "/api/v1/ingestion-runs", `{"source":"HACKER_NEWS"}`, "same-collection-intent", "")
+		}()
+	}
+	group.Wait()
+	close(responses)
+	var firstBody, firstLocation string
+	for item := range responses {
+		if item.Code == http.StatusConflict {
+			if !strings.Contains(item.Body.String(), `"IDEMPOTENCY_IN_PROGRESS"`) {
+				t.Fatalf("unexpected conflict: %s", item.Body)
+			}
+			continue
+		}
+		if item.Code != http.StatusAccepted {
+			t.Fatalf("concurrent create: %d %s", item.Code, item.Body)
+		}
+		if firstBody == "" {
+			firstBody = item.Body.String()
+			firstLocation = item.Header().Get("Location")
+		}
+		if item.Body.String() != firstBody || item.Header().Get("Location") != firstLocation {
+			t.Fatalf("concurrent replay differs: %s %v", item.Body, item.Header())
+		}
+	}
+	if firstBody == "" {
+		t.Fatal("no concurrent request created the task")
+	}
+	replay := call(handler, http.MethodPost, "/api/v1/ingestion-runs", `{"source":"HACKER_NEWS"}`, "same-collection-intent", "")
+	if replay.Code != http.StatusAccepted || replay.Body.String() != firstBody || replay.Header().Get("Location") != firstLocation {
+		t.Fatalf("completed replay: %d %s %v", replay.Code, replay.Body, replay.Header())
+	}
+	listed := call(handler, http.MethodGet, "/api/v1/ingestion-runs?source=HACKER_NEWS", "", "", "")
+	if listed.Code != http.StatusOK || !strings.Contains(listed.Body.String(), `"totalItems":1`) {
+		t.Fatalf("concurrent task count: %d %s", listed.Code, listed.Body)
+	}
+}
