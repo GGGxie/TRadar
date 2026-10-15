@@ -249,6 +249,45 @@ func TestReassociationAuditsWithoutMovingEvidenceOrObservations(t *testing.T) {
 	}
 }
 
+func TestTrackedSourcesPreferNeverAndLeastRecentlyObserved(t *testing.T) {
+	db, err := storage.Open(filepath.Join(t.TempDir(), "radar.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	ctx := context.Background()
+	now := time.Date(2026, 10, 15, 1, 0, 0, 0, time.UTC)
+	project, _ := createSourceProjects(t, db, now)
+	sources := make([]SourceRecord, 3)
+	err = storage.WithTx(ctx, db, func(tx *sql.Tx) error {
+		for index := range sources {
+			target := "https://github.com/acme/tracked-" + string(rune('a'+index))
+			var writeErr error
+			sources[index], _, writeErr = UpsertSource(ctx, tx, UpsertSourceInput{
+				ProjectID: project.ID, Source: "GITHUB", ExternalID: string(rune('1' + index)), RecordType: "PROJECT",
+				URL: "https://api.github.com/repositories/" + string(rune('1'+index)), TargetURL: &target,
+				Title: "acme/tracked-" + string(rune('a'+index)), FetchedAt: now,
+			})
+			if writeErr != nil {
+				return writeErr
+			}
+		}
+		for index, observedAt := range []time.Time{now.Add(-time.Hour), now} {
+			if _, writeErr := AppendObservations(ctx, tx, "age-"+string(rune('a'+index)), sources[index].ID, []ObservationInput{{Metric: "STARS", Basis: "CUMULATIVE", Value: int64(index + 1), ObservedAt: observedAt, FetchedAt: observedAt}}); writeErr != nil {
+				return writeErr
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ordered, err := ListSourcesByObservationAge(ctx, db, "GITHUB", []string{sources[1].ID, sources[2].ID, sources[0].ID}, "CUMULATIVE", 2)
+	if err != nil || len(ordered) != 2 || ordered[0].ID != sources[2].ID || ordered[1].ID != sources[0].ID {
+		t.Fatalf("tracked order: %+v err=%v", ordered, err)
+	}
+}
+
 func createSourceProjects(t *testing.T, db *sql.DB, now time.Time) (Project, Project) {
 	t.Helper()
 	ctx := context.Background()

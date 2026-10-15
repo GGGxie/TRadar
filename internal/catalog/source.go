@@ -147,6 +147,59 @@ func GetSource(ctx context.Context, q Querier, id string) (SourceRecord, error) 
 	return item, err
 }
 
+func FindSourceByExternalID(ctx context.Context, q Querier, source, externalID string) (SourceRecord, bool, error) {
+	item, err := scanSource(q.QueryRowContext(ctx, "SELECT "+sourceColumns+" FROM source_records WHERE source=? AND external_id=?", source, externalID))
+	if errors.Is(err, sql.ErrNoRows) {
+		return SourceRecord{}, false, nil
+	}
+	return item, err == nil, err
+}
+
+func ListSourcesByObservationAge(ctx context.Context, q Querier, source string, ids []string, basis string, limit int) ([]SourceRecord, error) {
+	if !isSource(source) || source == "MANUAL" {
+		return nil, fault.Field("source", "未知远程来源")
+	}
+	if basis != "CUMULATIVE" && basis != "SOURCE_DAILY" {
+		return nil, fault.Field("basis", "未知观测口径")
+	}
+	if len(ids) == 0 {
+		return []SourceRecord{}, nil
+	}
+	if len(ids) > 100 || limit < 1 || limit > 100 {
+		return nil, fault.Field("trackedSourceRecordIds", "跟踪来源数量无效")
+	}
+	placeholders := strings.TrimSuffix(strings.Repeat("?,", len(ids)), ",")
+	args := make([]any, 0, len(ids)+3)
+	args = append(args, basis, source)
+	for _, id := range ids {
+		args = append(args, id)
+	}
+	args = append(args, limit)
+	rows, err := q.QueryContext(ctx, `SELECT sr.`+strings.ReplaceAll(sourceColumns, ",", ",sr.")+`,max(o.observed_at) AS last_observed
+		FROM source_records sr
+		LEFT JOIN observations o ON o.source_record_id=sr.id AND o.basis=?
+		WHERE sr.source=? AND sr.id IN (`+placeholders+`)
+		GROUP BY sr.id
+		ORDER BY last_observed IS NOT NULL ASC,last_observed ASC,sr.id ASC LIMIT ?`, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := make([]SourceRecord, 0)
+	for rows.Next() {
+		var item SourceRecord
+		var lastObserved sql.NullString
+		err = rows.Scan(&item.ID, &item.ProjectID, &item.Source, &item.ExternalID, &item.RecordType,
+			&item.URL, &item.TargetURL, &item.Title, &item.Excerpt, &item.PublishedAt,
+			&item.FetchedAt, &item.Revision, &lastObserved)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, item)
+	}
+	return items, rows.Err()
+}
+
 func ListSources(ctx context.Context, q Querier, projectID string, filter SourceFilter) ([]SourceRecord, int, error) {
 	if filter.Page < 1 || filter.PageSize < 1 || filter.PageSize > 100 {
 		return nil, 0, fault.Field("page", "分页参数无效")
