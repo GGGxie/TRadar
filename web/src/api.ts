@@ -68,6 +68,68 @@ export interface Page<T> {
 export interface Resource<T> {
   data: T;
 }
+export type RemoteSource = "GITHUB" | "HACKER_NEWS" | "PRODUCT_HUNT";
+export type RunStatus =
+  | "QUEUED"
+  | "RUNNING"
+  | "RETRY_WAIT"
+  | "SUCCEEDED"
+  | "SUCCEEDED_EMPTY"
+  | "PARTIAL"
+  | "FAILED"
+  | "INTERRUPTED";
+export interface SourceConfig {
+  source: RemoteSource;
+  isEnabled: boolean;
+  isScheduleEnabled: boolean;
+  intervalMinutes: number;
+  keywords?: string[];
+  discoveryDays?: number;
+  candidatesPerKeyword?: number;
+  trackedSourceRecordIds?: string[];
+  requestBudgetPerHour?: number;
+  feeds?: string[];
+  itemsPerFeed?: number;
+  maxPages?: number;
+}
+export interface SourceView {
+  source: RemoteSource;
+  config: SourceConfig;
+  revision: number;
+  hasCredentials: boolean;
+  availability: "AVAILABLE" | "DISABLED" | "MISSING_CREDENTIALS";
+  lastRunId: string | null;
+  lastSuccessfulAt: string | null;
+  lastObservationAt: string | null;
+  nextScheduledAt: string | null;
+  nextRetryAt: string | null;
+  budget: {
+    remainingRequests: number | null;
+    resetAt: string | null;
+  };
+}
+export interface RunError {
+  code: string;
+  message: string;
+  itemId: string | null;
+}
+export interface IngestionRun {
+  id: string;
+  source: RemoteSource;
+  trigger: "MANUAL" | "SCHEDULED";
+  status: RunStatus;
+  createdAt: string;
+  startedAt: string | null;
+  finishedAt: string | null;
+  fetchedItems: number;
+  acceptedItems: number;
+  failedItems: number;
+  observationsWritten: number;
+  requestsMade: number;
+  isTruncated: boolean;
+  nextRetryAt: string | null;
+  errors: RunError[];
+}
 export class ApiError extends Error {
   constructor(
     message: string,
@@ -146,6 +208,38 @@ export function saveEvidence(
     method: "POST",
     headers: { "Content-Type": "application/json", "Idempotency-Key": key },
     body: JSON.stringify(input),
+  });
+}
+export function listSources(signal?: AbortSignal) {
+  return request<Page<SourceView>>("/sources?page=1&pageSize=20", { signal });
+}
+export function updateSource(
+  source: RemoteSource,
+  revision: number,
+  patch: Partial<Omit<SourceConfig, "source">>,
+) {
+  return request<Resource<SourceView>>(`/sources/${source}`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+      "If-Match": `"${revision}"`,
+    },
+    body: JSON.stringify(patch),
+  });
+}
+export function listIngestionRuns(signal?: AbortSignal) {
+  return request<Page<IngestionRun>>("/ingestion-runs?page=1&pageSize=20", {
+    signal,
+  });
+}
+export function triggerIngestion(source: RemoteSource, key: string) {
+  return request<Resource<IngestionRun>>("/ingestion-runs", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Idempotency-Key": key,
+    },
+    body: JSON.stringify({ source }),
   });
 }
 export function formatDate(value: string) {

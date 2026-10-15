@@ -2,6 +2,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { ProjectList } from "./ProjectList";
 import { ProjectDetails } from "./ProjectDetails";
+import { SettingsPage } from "./SettingsPage";
 import "./styles.css";
 import "./evidence.css";
 function App() {
@@ -9,6 +10,7 @@ function App() {
   const projectID = path.startsWith("/projects/")
     ? path.slice("/projects/".length)
     : null;
+  const isSettings = path === "/settings";
   const today = new Intl.DateTimeFormat("zh-CN", {
     timeZone: "Asia/Shanghai",
     year: "numeric",
@@ -36,10 +38,20 @@ function App() {
         <nav aria-label="主导航">
           <a
             href="/radar"
-            className="nav-item active"
-            aria-current={!projectID ? "page" : undefined}
+            className={`nav-item ${!projectID && !isSettings ? "active" : ""}`}
+            aria-current={!projectID && !isSettings ? "page" : undefined}
           >
             <span aria-hidden="true">◎</span> 项目目录
+            <span className="nav-chevron" aria-hidden="true">
+              ›
+            </span>
+          </a>
+          <a
+            href="/settings"
+            className={`nav-item ${isSettings ? "active" : ""}`}
+            aria-current={isSettings ? "page" : undefined}
+          >
+            <span aria-hidden="true">⌁</span> 信息源设置
             <span className="nav-chevron" aria-hidden="true">
               ›
             </span>
@@ -67,12 +79,20 @@ function App() {
         <header className="topbar">
           <span>
             工作空间 <span aria-hidden="true">/</span>{" "}
-            <strong>{projectID ? "项目详情" : "项目目录"}</strong>
+            <strong>
+              {projectID ? "项目详情" : isSettings ? "信息源设置" : "项目目录"}
+            </strong>
           </span>
           <time>{today}</time>
         </header>
         <main id="main">
-          {projectID ? <ProjectDetails id={projectID} /> : <ProjectList />}
+          {projectID ? (
+            <ProjectDetails id={projectID} />
+          ) : isSettings ? (
+            <SettingsPage />
+          ) : (
+            <ProjectList />
+          )}
         </main>
         <footer className="page-footer">
           <span>TRadar · Keep a signal, build a perspective.</span>
