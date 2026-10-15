@@ -74,7 +74,7 @@ func (e *GitHubExecutor) Execute(ctx context.Context, run IngestionRun, reposito
 	}
 	controller := requestController{
 		db: e.db, runID: run.ID, client: e.client, source: GitHub,
-		budget: &BudgetPolicy{HourlyLimit: run.Config.RequestBudgetPerHour, SearchMinuteLimit: 10},
+		budget: githubBudgetPolicy(run.Config, e.token != ""),
 		now:    e.now, deadline: e.now().Add(5 * time.Minute),
 	}
 	tracked, err := catalog.ListSourcesByObservationAge(ctx, e.db, string(GitHub), run.Config.TrackedSourceRecordIDs, "CUMULATIVE", 20)
@@ -265,6 +265,14 @@ func (e *GitHubExecutor) Execute(ctx context.Context, run IngestionRun, reposito
 		}
 	}
 	return result, nil
+}
+
+func githubBudgetPolicy(config SourceConfig, hasToken bool) *BudgetPolicy {
+	hourlyLimit := config.RequestBudgetPerHour
+	if !hasToken && hourlyLimit > 60 {
+		hourlyLimit = 60
+	}
+	return &BudgetPolicy{HourlyLimit: hourlyLimit, SearchMinuteLimit: 10}
 }
 
 func (e *GitHubExecutor) request(ctx context.Context, path string, values url.Values) (*http.Request, error) {

@@ -147,6 +147,16 @@ func TestProviderLimitCannotRaiseStricterLocalBudget(t *testing.T) {
 	}
 }
 
+func TestAnonymousGitHubPolicyNeverExceedsSixty(t *testing.T) {
+	config := SourceConfig{RequestBudgetPerHour: 5000}
+	if policy := githubBudgetPolicy(config, false); policy.HourlyLimit != 60 {
+		t.Fatalf("anonymous hourly limit=%d", policy.HourlyLimit)
+	}
+	if policy := githubBudgetPolicy(config, true); policy.HourlyLimit != 5000 {
+		t.Fatalf("token hourly limit=%d", policy.HourlyLimit)
+	}
+}
+
 func enableSchedule(t *testing.T, db *sql.DB, source RemoteSource, revision int, now time.Time) {
 	t.Helper()
 	enabled := true

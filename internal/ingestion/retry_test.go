@@ -8,6 +8,8 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"strconv"
 	"strings"
 	"testing"
@@ -144,6 +146,35 @@ func TestRequestStopsWhenRequiredDelayExceedsTaskDeadline(t *testing.T) {
 	report, err := controller.JSON(context.Background(), request, RequestGeneral, &map[string]any{})
 	if remoteErrorCode(err) != "RATE_LIMITED" || report.Attempts != 1 || report.NextRetryAt == nil || !report.NextRetryAt.Equal(now.Add(10*time.Minute)) || waited {
 		t.Fatalf("report=%+v err=%v waited=%v", report, err, waited)
+	}
+}
+
+func TestRequestRetryUsesHTTPRetryAfterAndInjectedClock(t *testing.T) {
+	now := time.Date(2026, 10, 15, 8, 0, 0, 0, time.UTC)
+	clock := now
+	calls := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		calls++
+		if calls == 1 {
+			w.Header().Set("Retry-After", "4")
+			w.WriteHeader(http.StatusTooManyRequests)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{}`))
+	}))
+	defer server.Close()
+	target, _ := url.Parse(server.URL)
+	controller := requestController{
+		client: &http.Client{Transport: &rewriteTransport{target: target}}, source: HackerNews,
+		now: func() time.Time { return clock }, deadline: now.Add(5 * time.Minute),
+		wait:   func(_ context.Context, delay time.Duration) error { clock = clock.Add(delay); return nil },
+		jitter: func(time.Duration) time.Duration { return 0 }, requestTimeout: 15 * time.Second,
+	}
+	request, _ := http.NewRequest(http.MethodGet, hackerNewsAPIBase+"/test.json", nil)
+	report, err := controller.JSON(context.Background(), request, RequestGeneral, &map[string]any{})
+	if err != nil || report.Attempts != 2 || calls != 2 || !clock.Equal(now.Add(4*time.Second)) {
+		t.Fatalf("report=%+v calls=%d clock=%v err=%v", report, calls, clock, err)
 	}
 }
 

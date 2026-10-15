@@ -56,6 +56,9 @@ func ClaimRequestBudget(ctx context.Context, db *sql.DB, runID string, source Re
 			return fault.Field("source", "预算来源与任务不匹配")
 		}
 		hourStart := now.Add(-time.Hour)
+		if _, err = tx.ExecContext(ctx, `DELETE FROM request_budget_claims WHERE claimed_at<=?`, catalog.Timestamp(hourStart)); err != nil {
+			return err
+		}
 		hourCount, hourReset, err := budgetWindow(ctx, tx, source, "", hourStart)
 		if err != nil {
 			return err

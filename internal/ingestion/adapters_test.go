@@ -218,15 +218,16 @@ func TestGitHubExecutorStopsAfterAuthenticationFailure(t *testing.T) {
 	ctx := context.Background()
 	now := time.Date(2026, 10, 15, 4, 30, 0, 0, time.UTC)
 	requests := 0
+	const token = "super-secret-github-token"
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
 		requests++
 		w.WriteHeader(http.StatusUnauthorized)
-		w.Write([]byte(`{"message":"bad credentials"}`))
+		w.Write([]byte(`{"message":"bad credentials for super-secret-github-token"}`))
 	}))
 	defer server.Close()
 	target, _ := url.Parse(server.URL)
 	client := &http.Client{Transport: &rewriteTransport{target: target}}
-	executor := NewGitHubExecutor(db, client, "invalid", func() time.Time { return now })
+	executor := NewGitHubExecutor(db, client, token, func() time.Time { return now })
 	run := createQueuedRun(t, db, GitHub, now)
 	if err := NewRunner(db, func() time.Time { return now }).Run(ctx, run.ID, executor); err != nil {
 		t.Fatal(err)
@@ -234,6 +235,10 @@ func TestGitHubExecutorStopsAfterAuthenticationFailure(t *testing.T) {
 	stored, err := GetRun(ctx, db, run.ID)
 	if err != nil || stored.Status != StatusFailed || stored.RequestsMade != 1 || len(stored.Errors) != 1 || stored.Errors[0].Code != "AUTH_FAILED" || requests != 1 {
 		t.Fatalf("auth failure did not stop source: %+v requests=%d err=%v", stored, requests, err)
+	}
+	encoded, err := json.Marshal(stored)
+	if err != nil || strings.Contains(string(encoded), token) || strings.Contains(string(encoded), "bad credentials") {
+		t.Fatalf("secret or upstream body persisted: %s err=%v", encoded, err)
 	}
 }
 
