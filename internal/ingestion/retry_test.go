@@ -62,6 +62,11 @@ func TestRequestRetriesRateLimitsAndTemporaryFailures(t *testing.T) {
 			wantCalls: 2, wantWaits: []time.Duration{5 * time.Second},
 		},
 		{
+			name: "product hunt complexity reset seconds", source: ProductHunt,
+			steps:     []responseStep{{status: 429, headers: http.Header{"X-Rate-Limit-Reset": []string{"6"}}}, {status: 200, body: `{}`}},
+			wantCalls: 2, wantWaits: []time.Duration{6 * time.Second},
+		},
+		{
 			name: "github rate-limit 403", source: GitHub,
 			steps:     []responseStep{{status: 403, headers: http.Header{"X-Ratelimit-Remaining": []string{"0"}, "X-Ratelimit-Reset": []string{"1792051207"}}}, {status: 200, body: `{}`}},
 			wantCalls: 2, wantWaits: []time.Duration{7 * time.Second},

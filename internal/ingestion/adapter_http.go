@@ -95,8 +95,8 @@ func (c requestController) JSON(ctx context.Context, request *http.Request, clas
 		}
 		report.Attempts++
 		metadata, err := requestJSONAttempt(ctx, c.client, attemptRequest, destination, c.requestTimeout)
-		if c.source == GitHub && c.db != nil {
-			if recordErr := recordGitHubBudgetHeaders(ctx, c.db, metadata.header, now); recordErr != nil {
+		if (c.source == GitHub || c.source == ProductHunt) && c.db != nil {
+			if recordErr := recordProviderBudgetHeaders(ctx, c.db, c.source, metadata.header, now); recordErr != nil {
 				return report, recordErr
 			}
 		}
@@ -109,7 +109,7 @@ func (c requestController) JSON(ctx context.Context, request *http.Request, clas
 		if ctx.Err() != nil || !isRetryableRemoteError(c.source, metadata, err) {
 			return report, err
 		}
-		retryAt := retryTime(metadata.header, now, attempt, c.jitter)
+		retryAt := retryTime(c.source, metadata.header, now, attempt, c.jitter)
 		if attempt == 3 || (!c.deadline.IsZero() && !retryAt.Before(c.deadline)) {
 			report.NextRetryAt = &retryAt
 			return report, err
@@ -213,7 +213,7 @@ func isGitHubRateLimitForbidden(source RemoteSource, metadata responseMetadata) 
 		(strings.TrimSpace(metadata.header.Get("X-RateLimit-Remaining")) == "0" || strings.TrimSpace(metadata.header.Get("Retry-After")) != "")
 }
 
-func retryTime(header http.Header, now time.Time, attempt int, jitter func(time.Duration) time.Duration) time.Time {
+func retryTime(source RemoteSource, header http.Header, now time.Time, attempt int, jitter func(time.Duration) time.Duration) time.Time {
 	base := time.Second << (attempt - 1)
 	if base > 30*time.Second {
 		base = 30 * time.Second
@@ -222,7 +222,7 @@ func retryTime(header http.Header, now time.Time, attempt int, jitter func(time.
 	if headerAt, ok := retryAfterTime(header.Get("Retry-After"), now); ok && headerAt.After(retryAt) {
 		retryAt = headerAt
 	}
-	if resetAt, ok := rateLimitResetTime(header.Get("X-RateLimit-Reset")); ok && resetAt.After(retryAt) {
+	if resetAt, ok := providerResetTime(source, rateLimitHeader(header, source, "Reset"), now); ok && resetAt.After(retryAt) {
 		retryAt = resetAt
 	}
 	return retryAt
@@ -245,16 +245,39 @@ func rateLimitResetTime(value string) (time.Time, bool) {
 	return time.Unix(seconds, 0).UTC(), true
 }
 
-func recordGitHubBudgetHeaders(ctx context.Context, db *sql.DB, header http.Header, observedAt time.Time) error {
-	remaining, err := strconv.Atoi(strings.TrimSpace(header.Get("X-RateLimit-Remaining")))
-	if err != nil || remaining < 0 || remaining > 5000 {
+func providerResetTime(source RemoteSource, value string, now time.Time) (time.Time, bool) {
+	if source != ProductHunt {
+		return rateLimitResetTime(value)
+	}
+	seconds, err := strconv.ParseInt(strings.TrimSpace(value), 10, 32)
+	if err != nil || seconds <= 0 {
+		return time.Time{}, false
+	}
+	return now.Add(time.Duration(seconds) * time.Second), true
+}
+
+func recordProviderBudgetHeaders(ctx context.Context, db *sql.DB, source RemoteSource, header http.Header, observedAt time.Time) error {
+	remaining, err := strconv.Atoi(strings.TrimSpace(rateLimitHeader(header, source, "Remaining")))
+	maxRemaining := 5000
+	if source == ProductHunt {
+		maxRemaining = 1_000_000
+	}
+	if err != nil || remaining < 0 || remaining > maxRemaining {
 		return nil
 	}
-	resetAt, ok := rateLimitResetTime(header.Get("X-RateLimit-Reset"))
+	resetAt, ok := providerResetTime(source, rateLimitHeader(header, source, "Reset"), observedAt)
 	if !ok || !resetAt.After(observedAt) {
 		return nil
 	}
-	return RecordProviderBudget(ctx, db, GitHub, remaining, resetAt, observedAt)
+	return RecordProviderBudget(ctx, db, source, remaining, resetAt, observedAt)
+}
+
+func rateLimitHeader(header http.Header, source RemoteSource, field string) string {
+	prefix := "X-RateLimit-"
+	if source == ProductHunt {
+		prefix = "X-Rate-Limit-"
+	}
+	return header.Get(prefix + field)
 }
 
 func waitWithTimer(ctx context.Context, delay time.Duration) error {

@@ -118,7 +118,11 @@ func ClaimRequestBudget(ctx context.Context, db *sql.DB, runID string, source Re
 }
 
 func RecordProviderBudget(ctx context.Context, db *sql.DB, source RemoteSource, remaining int, resetAt, observedAt time.Time) error {
-	if !IsRemoteSource(source) || remaining < 0 || remaining > 5000 || !resetAt.After(observedAt) {
+	maxRemaining := 5000
+	if source == ProductHunt {
+		maxRemaining = 1_000_000
+	}
+	if !IsRemoteSource(source) || remaining < 0 || remaining > maxRemaining || !resetAt.After(observedAt) {
 		return fault.Field("budget", "来源配额响应无效")
 	}
 	return storage.WithTx(ctx, db, func(tx *sql.Tx) error {
