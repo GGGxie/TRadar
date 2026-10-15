@@ -1,8 +1,8 @@
 # Spec: 信息源采集与任务运行
 
-状态：**实施中**，2026-10-13 建立，2026-10-15 更新。来源配置、采集任务状态、原子幂等、
-事务 checkpoint、重启中断、GH/HN 适配器、持久化预算、受限重试、固定目标传输和调度去重
-已由本地 fixture 验证；运行时触发接线、PH、来源界面及真实外部冒烟仍按任务清单推进。
+状态：**首版实现并验证**，2026-10-13 建立，2026-10-15 更新。来源配置、采集任务状态、原子幂等、
+事务 checkpoint、重启中断、三来源适配器、持久化预算、受限重试、固定目标传输、调度、后台执行
+和来源设置页均已验证；GH/HN 已完成真实小流量冒烟，PH 真实联调仍以用户凭据和平台条件为准。
 模块 ID：`source-ingestion`。范围来自 [能力图](CAPABILITY-MAP.md)，仅依赖
 `project-catalog`；共享约束采用 [spec-common](docs/spec-common.md)。
 
@@ -197,12 +197,12 @@ GitHub 凭据通过 `TRADAR_GITHUB_TOKEN`、PH 通过 `TRADAR_PRODUCT_HUNT_TOKEN
 
 使用共享规格中的 Go/SQLite 技术方向，不新增第三方采集框架。
 完整构建、启动和全套检查目标命令见 [共享命令](docs/spec-common.md#项目布局及目标命令)。
-本模块实现后须支持的专项验证为 `go test -race ./internal/ingestion/...`；当前没有应用代码，
-这些命令是交付要求，不是本次已执行记录。
+本模块专项验证为 `go test -race ./internal/ingestion/...`，已在当前实现上执行通过；真实来源冒烟
+使用显式 opt-in 测试，默认测试不会访问外网。
 
 适配器、预算、调度和任务状态位于 `internal/ingestion/`，`*_test.go` 与被测代码同目录；
-去敏 fixture 放在 `internal/ingestion/testdata/`。HTTP 路由由 `internal/httpapi/` 映射，
-来源配置页面归 research 界面实现。数据库迁移归 `internal/storage/`，采集只能拥有
+去敏 fixture 由对应测试内的本地 HTTP 服务提供。HTTP 路由由 `internal/httpapi/` 映射，
+来源配置页面位于 Web 界面。数据库迁移归 `internal/storage/`，采集只能拥有
 SourceConfig、IngestionRun、Checkpoint 和预算/调度记录，不能重定义 catalog 模型。
 
 使用 gofmt、context 取消、显式错误返回和注入时钟/传输层；接口风格示例：
@@ -224,7 +224,7 @@ type Collector interface {
 
 | 编号 | 可验收行为 | 验证方法 |
 |---|---|---|
-| ING-01 | 空库无需 Token 可导入 GH/HN fixture，每条事实有来源 URL、发布时间（可未知）和观测时间；PH 默认禁用，启用但无 Token 显示缺凭据 | 适配器 + API 集成；后续独立真实冒烟 |
+| ING-01 | 空库无需 Token 可导入 GH/HN fixture，每条事实有来源 URL、发布时间（可未知）和观测时间；PH 默认禁用，启用但无 Token 显示缺凭据 | 适配器 + API 集成；独立真实冒烟 |
 | ING-02 | 单源断网仅该源失败，其他源完成；已存在指标不归零，任务错误与原观测新鲜度可查询 | 三来源并行故障注入 + SQLite |
 | ING-03 | 匿名 GH 第 61 个滚动小时请求在发出前被拒绝，搜索第 11 个分钟请求被延迟；重启和重试不重置预算 | 固定时钟、真实预算表、请求计数 |
 | ING-04 | 429/限流403 按 Retry-After 或 reset 延迟；三次尝试/5 分钟期限后停止；普通403/401 不重试 | httptest + 调度时钟 |
@@ -248,5 +248,5 @@ type Collector interface {
 
 可在审阅时调整的默认值：每 60 分钟、GH 三个关键词/新项目180天+近期更新7天/每词共10条、HN 每榜20条、
 PH 最近7天/最多3页。它们决定发现范围和配额消耗，均已有明确配置边界。
-尚未完成 GitHub 日历史/PH 账号的真实接口联调；不可用时展示历史不足或来源失败，
-不能因此声称“已完成全源接通”。本文件审阅通过后才进入实施计划。
+尚未完成 GitHub 日历史与 PH 账号的真实接口联调；不可用时展示历史不足或来源失败，
+不能因此声称“已完成全源接通”。

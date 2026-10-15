@@ -491,8 +491,11 @@ func TestManualGitHubRunReturnsRateLimitBeforeQueueing(t *testing.T) {
 	if response.Header().Get("Retry-After") == "" {
 		t.Fatalf("missing Retry-After: %v", response.Header())
 	}
-	var queued int
+	var queued, claims int
 	if err := db.QueryRowContext(ctx, `SELECT count(*) FROM ingestion_runs WHERE status='QUEUED'`).Scan(&queued); err != nil || queued != 0 {
 		t.Fatalf("queued=%d err=%v", queued, err)
+	}
+	if err := db.QueryRowContext(ctx, `SELECT count(*) FROM request_budget_claims WHERE source='GITHUB'`).Scan(&claims); err != nil || claims != 10 {
+		t.Fatalf("claims=%d err=%v", claims, err)
 	}
 }
