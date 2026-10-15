@@ -1,6 +1,7 @@
 # Spec: 信息源采集与任务运行
 
-状态：**待用户审阅的规格草案**，2026-10-13。尚未实现或执行联调。
+状态：**实施中**，2026-10-13 建立，2026-10-15 更新。来源配置、采集任务状态、原子幂等、
+事务 checkpoint 与重启中断已实现；真实适配器、预算、调度和来源界面仍按任务清单推进。
 模块 ID：`source-ingestion`。范围来自 [能力图](CAPABILITY-MAP.md)，仅依赖
 `project-catalog`；共享约束采用 [spec-common](docs/spec-common.md)。
 

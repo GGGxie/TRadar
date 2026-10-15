@@ -18,8 +18,9 @@
   验证：CAT-05，字段和请求边界；文件：catalog evidence、API、页面与对应测试。
 - [x] T06 来源/观测：稳定来源 ID、累计/日桶唯一键、事务与关联审计。
   验证：CAT-01/03/06/07；文件：catalog source、observation、查询与测试。
-- [ ] T07 采集任务：来源配置、任务幂等、独立失败、重启中断和事务 checkpoint。
-  验证：ING-02/05/06/12；文件：ingestion 模型、repository、runner、测试。
+- [x] T07 采集任务：来源配置、任务幂等、独立失败、重启中断和事务 checkpoint。
+  验证：ING-02/05/06 及 ING-12 的单来源非终态去重；完整定时去重/停机补偿仍由 T09 验证。
+  文件：ingestion 模型、repository、runner、API、启动恢复和测试。
 - [ ] T08 GH/HN 适配：候选发现、跟踪、正确空值/时间/历史边界。
   验证：ING-01/07/08/09，httptest fixtures；文件：两个适配器及测试。
 - [ ] T09 配额/调度：持久化预算、退避、固定网络目标、响应/时间上限、定时去重。
