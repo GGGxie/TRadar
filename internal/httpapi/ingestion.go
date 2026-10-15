@@ -3,6 +3,7 @@ package httpapi
 import (
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -116,6 +117,17 @@ func (s *Server) ingestionRuns(w http.ResponseWriter, r *http.Request) {
 			run, err := ingestion.CreateRun(r.Context(), tx, ingestion.CreateRunInput{
 				Source: input.Source, Trigger: ingestion.TriggerManual, HasCredentials: hasCredentials,
 			}, s.now())
+			if err == nil && input.Source == ingestion.GitHub {
+				policy := ingestion.BudgetPolicy{HourlyLimit: run.Config.RequestBudgetPerHour, SearchMinuteLimit: 10}
+				if !hasCredentials && policy.HourlyLimit > 60 {
+					policy.HourlyLimit = 60
+				}
+				_, err = ingestion.CheckRequestBudgetAvailability(r.Context(), tx, input.Source, ingestion.RequestSearch, policy, s.now())
+				var limited *ingestion.RateLimitError
+				if errors.As(err, &limited) {
+					err = fault.Retry("SOURCE_RATE_LIMITED", "GitHub 请求预算暂不可用", limited.RetryAt)
+				}
+			}
 			createdRun = run
 			return http.StatusAccepted, run, err
 		}, func(header http.Header, body []byte) {

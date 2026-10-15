@@ -460,3 +460,39 @@ func TestNewIngestionRunIsQueuedOnceForRuntime(t *testing.T) {
 		t.Fatalf("created=%d replayed=%d queued=%+v", created.Code, replayed.Code, queued)
 	}
 }
+
+func TestManualGitHubRunReturnsRateLimitBeforeQueueing(t *testing.T) {
+	handler, db := testServerWithDB(t)
+	ctx := context.Background()
+	now := time.Now().UTC().Truncate(time.Second)
+	var existing ingestion.IngestionRun
+	if err := storage.WithTx(ctx, db, func(tx *sql.Tx) error {
+		var createErr error
+		existing, createErr = ingestion.CreateRun(ctx, tx, ingestion.CreateRunInput{
+			Source: ingestion.GitHub, Trigger: ingestion.TriggerManual,
+		}, now)
+		return createErr
+	}); err != nil {
+		t.Fatal(err)
+	}
+	for range 10 {
+		if _, err := ingestion.ClaimRequestBudget(ctx, db, existing.ID, ingestion.GitHub, ingestion.RequestSearch, ingestion.BudgetPolicy{HourlyLimit: 60, SearchMinuteLimit: 10}, now); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := db.ExecContext(ctx, `UPDATE ingestion_runs SET status='INTERRUPTED',finished_at=? WHERE id=?`, now.Format(time.RFC3339Nano), existing.ID); err != nil {
+		t.Fatal(err)
+	}
+
+	response := call(handler, http.MethodPost, "/api/v1/ingestion-runs", `{"source":"GITHUB"}`, "budget-exhausted", "")
+	if response.Code != http.StatusTooManyRequests || !strings.Contains(response.Body.String(), `"SOURCE_RATE_LIMITED"`) {
+		t.Fatalf("rate limit response: %d %s", response.Code, response.Body)
+	}
+	if response.Header().Get("Retry-After") == "" {
+		t.Fatalf("missing Retry-After: %v", response.Header())
+	}
+	var queued int
+	if err := db.QueryRowContext(ctx, `SELECT count(*) FROM ingestion_runs WHERE status='QUEUED'`).Scan(&queued); err != nil || queued != 0 {
+		t.Fatalf("queued=%d err=%v", queued, err)
+	}
+}

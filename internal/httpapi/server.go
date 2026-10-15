@@ -190,6 +190,9 @@ func writeError(w http.ResponseWriter, r *http.Request, err error) {
 	var app *fault.Error
 	if errors.As(err, &app) {
 		code, message, fields = app.Code, app.Message, app.Fields
+		if app.RetryAt != nil {
+			w.Header().Set("Retry-After", app.RetryAt.UTC().Format(http.TimeFormat))
+		}
 		statuses := map[string]int{"VALIDATION_ERROR": 422, "NOT_FOUND": 404, "VERSION_CONFLICT": 412, "PRECONDITION_REQUIRED": 428, "IDEMPOTENCY_MISMATCH": 422, "IDEMPOTENCY_IN_PROGRESS": 409, "SOURCE_BUSY": 409, "SOURCE_DISABLED": 422, "SOURCE_CREDENTIALS_REQUIRED": 422, "SOURCE_RATE_LIMITED": 429, "BAD_REQUEST": 400, "FORBIDDEN": 403, "UNAUTHORIZED": 401, "UNSUPPORTED_MEDIA_TYPE": 415, "PAYLOAD_TOO_LARGE": 413, "METHOD_NOT_ALLOWED": 405, "CONFLICT": 409}
 		if n, ok := statuses[code]; ok {
 			status = n

@@ -35,6 +35,60 @@ type RateLimitError struct {
 
 func (e *RateLimitError) Error() string { return "来源请求预算暂不可用" }
 
+// CheckRequestBudgetAvailability verifies that a request could claim budget
+// without consuming it. ClaimRequestBudget remains the authoritative atomic
+// check immediately before each outbound request.
+func CheckRequestBudgetAvailability(ctx context.Context, q catalog.Querier, source RemoteSource, class RequestClass, policy BudgetPolicy, now time.Time) (BudgetState, error) {
+	if !IsRemoteSource(source) {
+		return BudgetState{}, fault.Field("source", "未知来源")
+	}
+	if class != RequestGeneral && class != RequestSearch {
+		return BudgetState{}, fault.Field("requestClass", "未知请求类型")
+	}
+	if policy.HourlyLimit < 1 || policy.HourlyLimit > 5000 || policy.SearchMinuteLimit < 1 || policy.SearchMinuteLimit > 1000 {
+		return BudgetState{}, fault.Field("budget", "请求预算策略无效")
+	}
+	now = now.UTC()
+	hourCount, hourReset, err := budgetWindow(ctx, q, source, "", now.Add(-time.Hour))
+	if err != nil {
+		return BudgetState{}, err
+	}
+	retryAt := time.Time{}
+	if hourCount >= policy.HourlyLimit {
+		retryAt = laterTime(retryAt, hourReset)
+	}
+	if class == RequestSearch {
+		searchCount, searchReset, countErr := budgetWindow(ctx, q, source, RequestSearch, now.Add(-time.Minute))
+		if countErr != nil {
+			return BudgetState{}, countErr
+		}
+		if searchCount >= policy.SearchMinuteLimit {
+			retryAt = laterTime(retryAt, searchReset)
+		}
+	}
+	stored, err := loadStoredBudgetState(ctx, q, source)
+	if err != nil {
+		return BudgetState{}, err
+	}
+	providerActive := stored.providerRemaining != nil && stored.providerReset.After(now)
+	if providerActive && *stored.providerRemaining <= 0 {
+		retryAt = laterTime(retryAt, stored.providerReset)
+	}
+	if !retryAt.IsZero() {
+		return BudgetState{}, &RateLimitError{RetryAt: retryAt}
+	}
+	localReset := now.Add(time.Hour)
+	if hourCount > 0 {
+		localReset = hourReset
+	}
+	local := BudgetState{RemainingRequests: policy.HourlyLimit - hourCount, ResetAt: localReset}
+	provider := BudgetState{}
+	if providerActive {
+		provider = BudgetState{RemainingRequests: *stored.providerRemaining, ResetAt: stored.providerReset}
+	}
+	return effectiveBudgetState(local, provider, providerActive), nil
+}
+
 func ClaimRequestBudget(ctx context.Context, db *sql.DB, runID string, source RemoteSource, class RequestClass, policy BudgetPolicy, now time.Time) (BudgetState, error) {
 	if !IsRemoteSource(source) {
 		return BudgetState{}, fault.Field("source", "未知来源")
