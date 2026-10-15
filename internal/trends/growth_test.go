@@ -122,6 +122,7 @@ func TestCalculateIgnoresDailyOtherMetricAndFutureObservations(t *testing.T) {
 	points := []catalog.Observation{
 		point("from", 100, trendBase, "CUMULATIVE"),
 		point("daily", 9000, trendBase, "SOURCE_DAILY"),
+		point("daily-refetch", 12000, trendBase, "SOURCE_DAILY"),
 		pointMetric("forks", 8000, trendBase.Add(24*time.Hour), "CUMULATIVE", "FORKS"),
 		point("latest", 125, trendBase.Add(24*time.Hour), "CUMULATIVE"),
 		point("future", 9999, trendBase.Add(27*time.Hour), "CUMULATIVE"),
