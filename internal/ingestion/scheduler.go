@@ -33,6 +33,10 @@ func (s *Scheduler) Tick(ctx context.Context, now time.Time) ([]IngestionRun, er
 		}
 		due = append(due, source)
 	}
+	if err = rows.Err(); err != nil {
+		rows.Close()
+		return nil, err
+	}
 	if err = rows.Close(); err != nil {
 		return nil, err
 	}
@@ -56,6 +60,7 @@ func (s *Scheduler) Tick(ctx context.Context, now time.Time) ([]IngestionRun, er
 				return nil
 			}
 			nextAt := now.Add(time.Duration(config.IntervalMinutes) * time.Minute)
+			retryBlocked := false
 			if config.NextRetryAt != nil {
 				retryAt, retryErr := time.Parse(time.RFC3339Nano, *config.NextRetryAt)
 				if retryErr != nil {
@@ -64,11 +69,20 @@ func (s *Scheduler) Tick(ctx context.Context, now time.Time) ([]IngestionRun, er
 				if retryAt.After(nextAt) {
 					nextAt = retryAt
 				}
+				retryBlocked = retryAt.After(now)
 			}
-			if _, updateErr := tx.ExecContext(ctx, `UPDATE source_configs SET next_scheduled_at=? WHERE source=? AND next_scheduled_at=?`, catalog.Timestamp(nextAt), source, *config.NextScheduledAt); updateErr != nil {
+			updated, updateErr := tx.ExecContext(ctx, `UPDATE source_configs SET next_scheduled_at=? WHERE source=? AND next_scheduled_at=?`, catalog.Timestamp(nextAt), source, *config.NextScheduledAt)
+			if updateErr != nil {
 				return updateErr
 			}
-			if !config.IsEnabled || !config.IsScheduleEnabled || source == ProductHunt && !s.credentials.ProductHunt {
+			changed, updateErr := updated.RowsAffected()
+			if updateErr != nil {
+				return updateErr
+			}
+			if changed != 1 {
+				return nil
+			}
+			if retryBlocked || !config.IsEnabled || !config.IsScheduleEnabled || source == ProductHunt && !s.credentials.ProductHunt {
 				return nil
 			}
 			var active int

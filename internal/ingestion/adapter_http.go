@@ -2,12 +2,18 @@ package ingestion
 
 import (
 	"bytes"
+	"compress/gzip"
 	"context"
+	"crypto/rand"
+	"database/sql"
+	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
+	"strings"
 	"time"
 )
 
@@ -15,9 +21,7 @@ const maxRemoteResponseBytes = 2 << 20
 const maxSafeInteger int64 = 9007199254740991
 const maxUnixTimestamp int64 = 253402300799
 
-type remoteError struct {
-	code string
-}
+type remoteError struct{ code string }
 
 func (e *remoteError) Error() string { return e.code }
 
@@ -29,34 +33,250 @@ func remoteErrorCode(err error) string {
 	return "NETWORK_ERROR"
 }
 
-func requestJSON(ctx context.Context, client *http.Client, request *http.Request, destination any) error {
-	requestContext, cancel := context.WithTimeout(ctx, 15*time.Second)
-	defer cancel()
-	response, err := client.Do(request.WithContext(requestContext))
+func isRemoteFailure(err error) bool {
+	var problem *remoteError
+	return errors.As(err, &problem)
+}
+
+type requestReport struct {
+	Attempts    int
+	NextRetryAt *time.Time
+}
+
+type requestController struct {
+	db             *sql.DB
+	runID          string
+	client         *http.Client
+	source         RemoteSource
+	budget         *BudgetPolicy
+	now            func() time.Time
+	deadline       time.Time
+	wait           func(context.Context, time.Duration) error
+	jitter         func(time.Duration) time.Duration
+	requestTimeout time.Duration
+}
+
+type responseMetadata struct {
+	status int
+	header http.Header
+}
+
+func applyRequestReport(result *ExecutionResult, report requestReport) {
+	result.RequestsMade += report.Attempts
+	if report.NextRetryAt != nil && (result.NextRetryAt == nil || report.NextRetryAt.After(*result.NextRetryAt)) {
+		retryAt := *report.NextRetryAt
+		result.NextRetryAt = &retryAt
+	}
+}
+
+func (c requestController) JSON(ctx context.Context, request *http.Request, class RequestClass, destination any) (requestReport, error) {
+	c = c.withDefaults()
+	var report requestReport
+	for attempt := 1; attempt <= 3; attempt++ {
+		now := c.now().UTC()
+		if !c.deadline.IsZero() && !now.Before(c.deadline) {
+			return report, &remoteError{code: "TASK_DEADLINE_EXCEEDED"}
+		}
+		attemptRequest, err := cloneRequestForAttempt(request)
+		if err != nil {
+			return report, err
+		}
+		if c.budget != nil {
+			_, err = ClaimRequestBudget(ctx, c.db, c.runID, c.source, class, *c.budget, now)
+			if err != nil {
+				var limited *RateLimitError
+				if errors.As(err, &limited) {
+					retry := limited.RetryAt
+					report.NextRetryAt = &retry
+					return report, &remoteError{code: "RATE_LIMITED"}
+				}
+				return report, err
+			}
+		}
+		report.Attempts++
+		metadata, err := requestJSONAttempt(ctx, c.client, attemptRequest, destination, c.requestTimeout)
+		if c.source == GitHub && c.db != nil {
+			if recordErr := recordGitHubBudgetHeaders(ctx, c.db, metadata.header, now); recordErr != nil {
+				return report, recordErr
+			}
+		}
+		if err == nil {
+			return report, nil
+		}
+		if isGitHubRateLimitForbidden(c.source, metadata) {
+			err = &remoteError{code: "RATE_LIMITED"}
+		}
+		if ctx.Err() != nil || !isRetryableRemoteError(c.source, metadata, err) {
+			return report, err
+		}
+		retryAt := retryTime(metadata.header, now, attempt, c.jitter)
+		if attempt == 3 || (!c.deadline.IsZero() && !retryAt.Before(c.deadline)) {
+			report.NextRetryAt = &retryAt
+			return report, err
+		}
+		if waitErr := c.wait(ctx, retryAt.Sub(now)); waitErr != nil {
+			report.NextRetryAt = &retryAt
+			return report, &remoteError{code: "NETWORK_ERROR"}
+		}
+	}
+	return report, &remoteError{code: "NETWORK_ERROR"}
+}
+
+func cloneRequestForAttempt(request *http.Request) (*http.Request, error) {
+	cloned := request.Clone(request.Context())
+	if request.Body == nil {
+		return cloned, nil
+	}
+	if request.GetBody == nil {
+		return nil, errors.New("source request body is not replayable")
+	}
+	body, err := request.GetBody()
 	if err != nil {
-		return &remoteError{code: "NETWORK_ERROR"}
+		return nil, errors.New("source request body replay failed")
+	}
+	cloned.Body = body
+	return cloned, nil
+}
+
+func (c requestController) withDefaults() requestController {
+	if c.client == nil {
+		c.client = newSourceHTTPClient(c.source)
+	}
+	if c.now == nil {
+		c.now = time.Now
+	}
+	if c.wait == nil {
+		c.wait = waitWithTimer
+	}
+	if c.jitter == nil {
+		c.jitter = randomJitter
+	}
+	if c.requestTimeout <= 0 {
+		c.requestTimeout = 15 * time.Second
+	}
+	return c
+}
+
+func requestJSONAttempt(ctx context.Context, client *http.Client, request *http.Request, destination any, timeout time.Duration) (responseMetadata, error) {
+	requestContext, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	response, err := client.Do(request.Clone(requestContext))
+	if err != nil {
+		return responseMetadata{}, &remoteError{code: "NETWORK_ERROR"}
 	}
 	defer response.Body.Close()
+	metadata := responseMetadata{status: response.StatusCode, header: response.Header.Clone()}
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		return &remoteError{code: remoteStatusCode(response.StatusCode)}
+		return metadata, &remoteError{code: remoteStatusCode(response.StatusCode)}
 	}
-	limited := io.LimitReader(response.Body, maxRemoteResponseBytes+1)
+	reader := io.Reader(response.Body)
+	if encoding := strings.TrimSpace(response.Header.Get("Content-Encoding")); encoding != "" && !response.Uncompressed {
+		if !strings.EqualFold(encoding, "gzip") {
+			return metadata, &remoteError{code: "MALFORMED_RESPONSE"}
+		}
+		compressed, gzipErr := gzip.NewReader(response.Body)
+		if gzipErr != nil {
+			return metadata, &remoteError{code: "MALFORMED_RESPONSE"}
+		}
+		defer compressed.Close()
+		reader = compressed
+	}
+	limited := io.LimitReader(reader, maxRemoteResponseBytes+1)
 	body, err := io.ReadAll(limited)
 	if err != nil {
-		return &remoteError{code: "NETWORK_ERROR"}
+		return metadata, &remoteError{code: "NETWORK_ERROR"}
 	}
 	if len(body) > maxRemoteResponseBytes {
-		return &remoteError{code: "RESPONSE_TOO_LARGE"}
+		return metadata, &remoteError{code: "RESPONSE_TOO_LARGE"}
 	}
 	decoder := json.NewDecoder(bytes.NewReader(body))
 	if err = decoder.Decode(destination); err != nil {
-		return &remoteError{code: "MALFORMED_RESPONSE"}
+		return metadata, &remoteError{code: "MALFORMED_RESPONSE"}
 	}
 	var extra any
 	if err = decoder.Decode(&extra); err != io.EOF {
-		return &remoteError{code: "MALFORMED_RESPONSE"}
+		return metadata, &remoteError{code: "MALFORMED_RESPONSE"}
 	}
-	return nil
+	return metadata, nil
+}
+
+func isRetryableRemoteError(source RemoteSource, metadata responseMetadata, err error) bool {
+	code := remoteErrorCode(err)
+	if code == "NETWORK_ERROR" || metadata.status == http.StatusTooManyRequests || metadata.status >= 500 {
+		return true
+	}
+	return isGitHubRateLimitForbidden(source, metadata)
+}
+
+func isGitHubRateLimitForbidden(source RemoteSource, metadata responseMetadata) bool {
+	return source == GitHub && metadata.status == http.StatusForbidden &&
+		(strings.TrimSpace(metadata.header.Get("X-RateLimit-Remaining")) == "0" || strings.TrimSpace(metadata.header.Get("Retry-After")) != "")
+}
+
+func retryTime(header http.Header, now time.Time, attempt int, jitter func(time.Duration) time.Duration) time.Time {
+	base := time.Second << (attempt - 1)
+	if base > 30*time.Second {
+		base = 30 * time.Second
+	}
+	retryAt := now.Add(base + jitter(base))
+	if headerAt, ok := retryAfterTime(header.Get("Retry-After"), now); ok && headerAt.After(retryAt) {
+		retryAt = headerAt
+	}
+	if resetAt, ok := rateLimitResetTime(header.Get("X-RateLimit-Reset")); ok && resetAt.After(retryAt) {
+		retryAt = resetAt
+	}
+	return retryAt
+}
+
+func retryAfterTime(value string, now time.Time) (time.Time, bool) {
+	value = strings.TrimSpace(value)
+	if seconds, err := strconv.ParseInt(value, 10, 32); err == nil && seconds >= 0 {
+		return now.Add(time.Duration(seconds) * time.Second), true
+	}
+	parsed, err := http.ParseTime(value)
+	return parsed, err == nil && parsed.After(now)
+}
+
+func rateLimitResetTime(value string) (time.Time, bool) {
+	seconds, err := strconv.ParseInt(strings.TrimSpace(value), 10, 64)
+	if err != nil || seconds <= 0 || seconds > maxUnixTimestamp {
+		return time.Time{}, false
+	}
+	return time.Unix(seconds, 0).UTC(), true
+}
+
+func recordGitHubBudgetHeaders(ctx context.Context, db *sql.DB, header http.Header, observedAt time.Time) error {
+	remaining, err := strconv.Atoi(strings.TrimSpace(header.Get("X-RateLimit-Remaining")))
+	if err != nil || remaining < 0 || remaining > 5000 {
+		return nil
+	}
+	resetAt, ok := rateLimitResetTime(header.Get("X-RateLimit-Reset"))
+	if !ok || !resetAt.After(observedAt) {
+		return nil
+	}
+	return RecordProviderBudget(ctx, db, GitHub, remaining, resetAt, observedAt)
+}
+
+func waitWithTimer(ctx context.Context, delay time.Duration) error {
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
+}
+
+func randomJitter(base time.Duration) time.Duration {
+	if base <= 0 {
+		return 0
+	}
+	var buffer [8]byte
+	if _, err := rand.Read(buffer[:]); err != nil {
+		return 0
+	}
+	return time.Duration(binary.LittleEndian.Uint64(buffer[:]) % uint64(base))
 }
 
 func remoteStatusCode(status int) string {

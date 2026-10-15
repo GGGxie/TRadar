@@ -38,7 +38,7 @@ type hackerNewsItem struct {
 
 func NewHackerNewsExecutor(db *sql.DB, client *http.Client, now func() time.Time) *HackerNewsExecutor {
 	if client == nil {
-		client = http.DefaultClient
+		client = newSourceHTTPClient(HackerNews)
 	}
 	if now == nil {
 		now = time.Now
@@ -51,6 +51,7 @@ func (e *HackerNewsExecutor) Execute(ctx context.Context, run IngestionRun, repo
 	if run.Source != HackerNews || run.Config.Source != HackerNews {
 		return result, fault.Field("source", "Hacker News 执行器收到其他来源任务")
 	}
+	controller := requestController{client: e.client, source: HackerNews, now: e.now, deadline: e.now().Add(5 * time.Minute)}
 	orderedIDs := make([]int64, 0, 60)
 	seen := make(map[int64]bool)
 	addID := func(id int64) {
@@ -79,10 +80,15 @@ func (e *HackerNewsExecutor) Execute(ctx context.Context, run IngestionRun, repo
 		if err != nil {
 			return result, err
 		}
-		result.RequestsMade++
 		var ids []int64
-		if err = requestJSON(ctx, e.client, request, &ids); err != nil {
-			appendRunError(&result, remoteErrorCode(err), "HN 榜单读取失败", nil, true)
+		report, requestErr := controller.JSON(ctx, request, RequestGeneral, &ids)
+		applyRequestReport(&result, report)
+		if requestErr != nil {
+			code := remoteErrorCode(requestErr)
+			appendRunError(&result, code, "HN 榜单读取失败", nil, true)
+			if code == "RATE_LIMITED" || code == "TASK_DEADLINE_EXCEEDED" {
+				return result, nil
+			}
 			continue
 		}
 		if ids == nil {
@@ -105,10 +111,15 @@ func (e *HackerNewsExecutor) Execute(ctx context.Context, run IngestionRun, repo
 		if err != nil {
 			return result, err
 		}
-		result.RequestsMade++
 		var item *hackerNewsItem
-		if err = requestJSON(ctx, e.client, request, &item); err != nil {
-			appendRunError(&result, remoteErrorCode(err), "HN item 读取失败", &idString, true)
+		report, requestErr := controller.JSON(ctx, request, RequestGeneral, &item)
+		applyRequestReport(&result, report)
+		if requestErr != nil {
+			code := remoteErrorCode(requestErr)
+			appendRunError(&result, code, "HN item 读取失败", &idString, true)
+			if code == "RATE_LIMITED" || code == "TASK_DEADLINE_EXCEEDED" {
+				return result, nil
+			}
 			continue
 		}
 		if item == nil {

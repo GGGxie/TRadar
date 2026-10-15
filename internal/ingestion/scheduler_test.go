@@ -62,6 +62,27 @@ func TestSchedulerMergesDueTriggerWhileSourceIsBusy(t *testing.T) {
 	}
 }
 
+func TestSchedulerDoesNotRunBeforePersistedRetryTime(t *testing.T) {
+	db := openTestDB(t)
+	ctx := context.Background()
+	configuredAt := time.Date(2026, 10, 15, 12, 30, 0, 0, time.UTC)
+	enableSchedule(t, db, GitHub, 1, configuredAt)
+	retryAt := configuredAt.Add(3 * time.Hour)
+	setNextRetry(t, db, GitHub, retryAt)
+	runs, err := NewScheduler(db, Credentials{}).Tick(ctx, configuredAt.Add(time.Hour))
+	if err != nil || len(runs) != 0 {
+		t.Fatalf("run created before retry time: %+v err=%v", runs, err)
+	}
+	config, err := GetSourceConfig(ctx, db, GitHub)
+	if err != nil || config.NextScheduledAt == nil || *config.NextScheduledAt != catalog.Timestamp(retryAt) {
+		t.Fatalf("next schedule=%v err=%v", config.NextScheduledAt, err)
+	}
+	runs, err = NewScheduler(db, Credentials{}).Tick(ctx, retryAt)
+	if err != nil || len(runs) != 1 {
+		t.Fatalf("retry due runs=%+v err=%v", runs, err)
+	}
+}
+
 func TestConcurrentSchedulerTicksCreateOneIntent(t *testing.T) {
 	db := openTestDB(t)
 	ctx := context.Background()

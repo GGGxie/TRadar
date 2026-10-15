@@ -59,7 +59,7 @@ type githubStarWeek struct {
 
 func NewGitHubExecutor(db *sql.DB, client *http.Client, token string, now func() time.Time) *GitHubExecutor {
 	if client == nil {
-		client = http.DefaultClient
+		client = newSourceHTTPClient(GitHub)
 	}
 	if now == nil {
 		now = time.Now
@@ -71,6 +71,11 @@ func (e *GitHubExecutor) Execute(ctx context.Context, run IngestionRun, reposito
 	result := ExecutionResult{Errors: []RunError{}}
 	if run.Source != GitHub || run.Config.Source != GitHub {
 		return result, fault.Field("source", "GitHub 执行器收到其他来源任务")
+	}
+	controller := requestController{
+		db: e.db, runID: run.ID, client: e.client, source: GitHub,
+		budget: &BudgetPolicy{HourlyLimit: run.Config.RequestBudgetPerHour, SearchMinuteLimit: 10},
+		now:    e.now, deadline: e.now().Add(5 * time.Minute),
 	}
 	tracked, err := catalog.ListSourcesByObservationAge(ctx, e.db, string(GitHub), run.Config.TrackedSourceRecordIDs, "CUMULATIVE", 20)
 	if err != nil {
@@ -108,12 +113,16 @@ func (e *GitHubExecutor) Execute(ctx context.Context, run IngestionRun, reposito
 			if requestErr != nil {
 				return result, requestErr
 			}
-			result.RequestsMade++
 			var response githubSearchResponse
-			if requestErr = requestJSON(ctx, e.client, request, &response); requestErr != nil {
+			report, requestErr := controller.JSON(ctx, request, RequestSearch, &response)
+			applyRequestReport(&result, report)
+			if requestErr != nil {
+				if !isRemoteFailure(requestErr) {
+					return result, requestErr
+				}
 				code := remoteErrorCode(requestErr)
 				appendRunError(&result, code, "GitHub 候选查询失败", nil, true)
-				if code == "AUTH_FAILED" {
+				if code == "AUTH_FAILED" || code == "RATE_LIMITED" || code == "TASK_DEADLINE_EXCEEDED" {
 					return result, nil
 				}
 				continue
@@ -176,13 +185,17 @@ func (e *GitHubExecutor) Execute(ctx context.Context, run IngestionRun, reposito
 		if requestErr != nil {
 			return result, requestErr
 		}
-		result.RequestsMade++
 		var item githubRepository
-		if requestErr = requestJSON(ctx, e.client, request, &item); requestErr != nil {
+		report, requestErr := controller.JSON(ctx, request, RequestGeneral, &item)
+		applyRequestReport(&result, report)
+		if requestErr != nil {
+			if !isRemoteFailure(requestErr) {
+				return result, requestErr
+			}
 			itemID := source.ID
 			code := remoteErrorCode(requestErr)
 			appendRunError(&result, code, "GitHub 跟踪仓库读取失败", &itemID, true)
-			if code == "AUTH_FAILED" {
+			if code == "AUTH_FAILED" || code == "RATE_LIMITED" || code == "TASK_DEADLINE_EXCEEDED" {
 				return result, nil
 			}
 			continue
@@ -220,12 +233,17 @@ func (e *GitHubExecutor) Execute(ctx context.Context, run IngestionRun, reposito
 		if requestErr != nil {
 			return result, requestErr
 		}
-		result.RequestsMade++
 		var weeks []githubStarWeek
-		if requestErr = requestJSON(ctx, e.client, request, &weeks); requestErr != nil {
+		report, requestErr := controller.JSON(ctx, request, RequestGeneral, &weeks)
+		applyRequestReport(&result, report)
+		if requestErr != nil {
+			if !isRemoteFailure(requestErr) {
+				return result, requestErr
+			}
 			itemID := source.ID
-			if remoteErrorCode(requestErr) == "AUTH_FAILED" {
-				appendRunError(&result, "AUTH_FAILED", "GitHub 凭据无效", &itemID, true)
+			code := remoteErrorCode(requestErr)
+			if code == "AUTH_FAILED" || code == "RATE_LIMITED" || code == "TASK_DEADLINE_EXCEEDED" {
+				appendRunError(&result, code, "GitHub 历史请求停止", &itemID, true)
 				return result, nil
 			}
 			appendRunError(&result, "HISTORY_UNAVAILABLE", "GitHub Star 历史暂不可用", &itemID, true)

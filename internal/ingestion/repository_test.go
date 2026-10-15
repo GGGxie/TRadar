@@ -295,6 +295,55 @@ func TestRunnerKeepsSourceFailuresIndependent(t *testing.T) {
 	}
 }
 
+func TestRunnerPersistsAndClearsSourceRetryTime(t *testing.T) {
+	db := openTestDB(t)
+	ctx := context.Background()
+	now := time.Date(2026, 10, 15, 14, 0, 0, 0, time.UTC)
+	retryAt := now.Add(20 * time.Minute)
+	run := createQueuedRun(t, db, GitHub, now)
+	runner := NewRunner(db, func() time.Time { return now })
+	if err := runner.Run(ctx, run.ID, ExecutorFunc(func(context.Context, IngestionRun, *Repository) (ExecutionResult, error) {
+		return ExecutionResult{NextRetryAt: &retryAt, Errors: []RunError{{Code: "RATE_LIMITED", Message: "来源配额暂不可用"}}}, nil
+	})); err != nil {
+		t.Fatal(err)
+	}
+	config, err := GetSourceConfig(ctx, db, GitHub)
+	if err != nil || config.NextRetryAt == nil || *config.NextRetryAt != catalog.Timestamp(retryAt) {
+		t.Fatalf("stored source retry=%v err=%v", config.NextRetryAt, err)
+	}
+
+	now = now.Add(time.Hour)
+	next := createQueuedRun(t, db, GitHub, now)
+	if err = runner.Run(ctx, next.ID, ExecutorFunc(func(context.Context, IngestionRun, *Repository) (ExecutionResult, error) {
+		return ExecutionResult{}, nil
+	})); err != nil {
+		t.Fatal(err)
+	}
+	config, err = GetSourceConfig(ctx, db, GitHub)
+	if err != nil || config.NextRetryAt != nil {
+		t.Fatalf("successful run kept source retry=%v err=%v", config.NextRetryAt, err)
+	}
+}
+
+func TestRunnerCancelsTaskAtConfiguredDeadline(t *testing.T) {
+	db := openTestDB(t)
+	run := createQueuedRun(t, db, HackerNews, time.Now())
+	runner := NewRunner(db, time.Now)
+	runner.taskTimeout = 10 * time.Millisecond
+	started := time.Now()
+	err := runner.Run(context.Background(), run.ID, ExecutorFunc(func(ctx context.Context, _ IngestionRun, _ *Repository) (ExecutionResult, error) {
+		<-ctx.Done()
+		return ExecutionResult{}, nil
+	}))
+	if err == nil || time.Since(started) > time.Second {
+		t.Fatalf("deadline err=%v elapsed=%v", err, time.Since(started))
+	}
+	stored, readErr := GetRun(context.Background(), db, run.ID)
+	if readErr != nil || stored.Status != StatusFailed || len(stored.Errors) != 1 || stored.Errors[0].Code != "COLLECT_FAILED" {
+		t.Fatalf("deadline run=%+v err=%v", stored, readErr)
+	}
+}
+
 func createQueuedRun(t *testing.T, db *sql.DB, source RemoteSource, now time.Time) IngestionRun {
 	t.Helper()
 	var run IngestionRun

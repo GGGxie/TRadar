@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"tradar/internal/catalog"
 	"tradar/internal/storage"
 )
 
@@ -29,15 +30,16 @@ func (f ExecutorFunc) Execute(ctx context.Context, run IngestionRun, repository 
 }
 
 type Runner struct {
-	db  *sql.DB
-	now func() time.Time
+	db          *sql.DB
+	now         func() time.Time
+	taskTimeout time.Duration
 }
 
 func NewRunner(db *sql.DB, now func() time.Time) *Runner {
 	if now == nil {
 		now = time.Now
 	}
-	return &Runner{db: db, now: now}
+	return &Runner{db: db, now: now, taskTimeout: 5 * time.Minute}
 }
 
 func (r *Runner) Run(ctx context.Context, id string, executor Executor) error {
@@ -52,7 +54,13 @@ func (r *Runner) Run(ctx context.Context, id string, executor Executor) error {
 	}
 	repository := NewRepository(r.db)
 	repository.now = r.now
-	result, executionErr := executor.Execute(ctx, run, repository)
+	executionContext, cancel := context.WithTimeout(ctx, r.taskTimeout)
+	result, executionErr := executor.Execute(executionContext, run, repository)
+	executionContextErr := executionContext.Err()
+	cancel()
+	if executionErr == nil && executionContextErr != nil {
+		executionErr = executionContextErr
+	}
 	latest, readErr := GetRun(ctx, r.db, id)
 	if readErr != nil {
 		return errors.Join(executionErr, readErr)
@@ -78,6 +86,14 @@ func (r *Runner) Run(ctx context.Context, id string, executor Executor) error {
 			Status: status, RequestsMade: result.RequestsMade, IsTruncated: result.IsTruncated,
 			NextRetryAt: result.NextRetryAt, Errors: storedErrors,
 		}, r.now())
+		if err != nil {
+			return err
+		}
+		var nextRetry any
+		if result.NextRetryAt != nil {
+			nextRetry = catalog.Timestamp(*result.NextRetryAt)
+		}
+		_, err = tx.ExecContext(ctx, `UPDATE source_configs SET next_retry_at=? WHERE source=?`, nextRetry, run.Source)
 		return err
 	})
 	return errors.Join(executionErr, finishErr)
