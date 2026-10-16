@@ -102,3 +102,41 @@ func decodeEntryPatch(r *http.Request) (research.EntryPatch, error) {
 	_, input.NextActionAtSet = fields["nextActionAt"]
 	return input, nil
 }
+
+func (s *Server) researchPreferences(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+		preferences, err := research.GetPreferences(r.Context(), s.db)
+		if err != nil {
+			writeError(w, r, err)
+			return
+		}
+		w.Header().Set("ETag", fmt.Sprintf(`"%d"`, preferences.Revision))
+		writeJSON(w, http.StatusOK, response{Data: preferences})
+	case http.MethodPatch:
+		expected, err := revision(r)
+		if err != nil {
+			writeError(w, r, err)
+			return
+		}
+		var patch research.PreferencesPatch
+		if err = decode(r, &patch); err != nil {
+			writeError(w, r, err)
+			return
+		}
+		var preferences research.Preferences
+		err = storage.WithTx(r.Context(), s.db, func(tx *sql.Tx) error {
+			var updateErr error
+			preferences, updateErr = research.UpdatePreferences(r.Context(), tx, expected, patch)
+			return updateErr
+		})
+		if err != nil {
+			writeError(w, r, err)
+			return
+		}
+		w.Header().Set("ETag", fmt.Sprintf(`"%d"`, preferences.Revision))
+		writeJSON(w, http.StatusOK, response{Data: preferences})
+	default:
+		methodError(w, r)
+	}
+}

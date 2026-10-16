@@ -107,6 +107,43 @@ func TestListEntriesFiltersSearchesAndProjectChangesDoNotRewriteNotes(t *testing
 	}
 }
 
+func TestPreferencesHaveDefaultsAndUseRevisionConflicts(t *testing.T) {
+	db := researchDB(t)
+	ctx := context.Background()
+	preferences, err := GetPreferences(ctx, db)
+	if err != nil || preferences.Revision != 1 || len(preferences.FocusTopics) != 3 || preferences.DailySaveTarget != 3 || preferences.WeeklyDeepTarget != 2 || preferences.MonthlyPracticeTarget != 1 {
+		t.Fatalf("defaults=%+v err=%v", preferences, err)
+	}
+	topics := []string{" AI Agent ", "AI agent", "独立开发"}
+	daily, weekly := 0, 4
+	var updated Preferences
+	if err = storage.WithTx(ctx, db, func(tx *sql.Tx) error {
+		var updateErr error
+		updated, updateErr = UpdatePreferences(ctx, tx, preferences.Revision, PreferencesPatch{FocusTopics: &topics, DailySaveTarget: &daily, WeeklyDeepTarget: &weekly})
+		return updateErr
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if updated.Revision != 2 || len(updated.FocusTopics) != 2 || updated.FocusTopics[0] != "AI Agent" || updated.DailySaveTarget != 0 || updated.WeeklyDeepTarget != 4 {
+		t.Fatalf("updated=%+v", updated)
+	}
+	err = storage.WithTx(ctx, db, func(tx *sql.Tx) error {
+		_, updateErr := UpdatePreferences(ctx, tx, preferences.Revision, PreferencesPatch{DailySaveTarget: &weekly})
+		return updateErr
+	})
+	if faultCode(err) != "VERSION_CONFLICT" {
+		t.Fatalf("stale error=%v", err)
+	}
+	tooHigh := 101
+	err = storage.WithTx(ctx, db, func(tx *sql.Tx) error {
+		_, updateErr := UpdatePreferences(ctx, tx, updated.Revision, PreferencesPatch{MonthlyPracticeTarget: &tooHigh})
+		return updateErr
+	})
+	if faultCode(err) != "VALIDATION_ERROR" {
+		t.Fatalf("invalid error=%v", err)
+	}
+}
+
 func researchDB(t *testing.T) *sql.DB {
 	t.Helper()
 	db, err := storage.Open(filepath.Join(t.TempDir(), "radar.db"))

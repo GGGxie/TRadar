@@ -90,3 +90,27 @@ func TestResearchHTTPRejectsInvalidFiltersFieldsAndNulls(t *testing.T) {
 		t.Fatalf("long q=%d %s", tooLong.Code, tooLong.Body)
 	}
 }
+
+func TestResearchPreferencesHTTPDefaultsUpdateAndConflict(t *testing.T) {
+	handler := testServer(t)
+	read := call(handler, http.MethodGet, "/api/v1/research-preferences", "", "", "")
+	if read.Code != http.StatusOK || read.Header().Get("ETag") != `"1"` || !strings.Contains(read.Body.String(), `"focusTopics":["AI Agent","开发者工具","SaaS"]`) || !strings.Contains(read.Body.String(), `"dailySaveTarget":3`) {
+		t.Fatalf("read=%d %s headers=%v", read.Code, read.Body, read.Header())
+	}
+	missing := call(handler, http.MethodPatch, "/api/v1/research-preferences", `{"dailySaveTarget":0}`, "", "")
+	if missing.Code != http.StatusPreconditionRequired {
+		t.Fatalf("missing=%d %s", missing.Code, missing.Body)
+	}
+	updated := call(handler, http.MethodPatch, "/api/v1/research-preferences", `{"focusTopics":["AI Agent","ai agent","独立开发"],"dailySaveTarget":0}`, "", `"1"`)
+	if updated.Code != http.StatusOK || updated.Header().Get("ETag") != `"2"` || !strings.Contains(updated.Body.String(), `"focusTopics":["AI Agent","独立开发"]`) {
+		t.Fatalf("updated=%d %s headers=%v", updated.Code, updated.Body, updated.Header())
+	}
+	stale := call(handler, http.MethodPatch, "/api/v1/research-preferences", `{"weeklyDeepTarget":4}`, "", `"1"`)
+	if stale.Code != http.StatusPreconditionFailed {
+		t.Fatalf("stale=%d %s", stale.Code, stale.Body)
+	}
+	invalid := call(handler, http.MethodPatch, "/api/v1/research-preferences", `{"monthlyPracticeTarget":101}`, "", `"2"`)
+	if invalid.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("invalid=%d %s", invalid.Code, invalid.Body)
+	}
+}

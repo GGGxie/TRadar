@@ -36,3 +36,18 @@ type EntryFilter struct {
 	Query          string
 	Page, PageSize int
 }
+
+type Preferences struct {
+	Revision              int      `json:"revision"`
+	FocusTopics           []string `json:"focusTopics"`
+	DailySaveTarget       int      `json:"dailySaveTarget"`
+	WeeklyDeepTarget      int      `json:"weeklyDeepTarget"`
+	MonthlyPracticeTarget int      `json:"monthlyPracticeTarget"`
+}
+
+type PreferencesPatch struct {
+	FocusTopics           *[]string `json:"focusTopics"`
+	DailySaveTarget       *int      `json:"dailySaveTarget"`
+	WeeklyDeepTarget      *int      `json:"weeklyDeepTarget"`
+	MonthlyPracticeTarget *int      `json:"monthlyPracticeTarget"`
+}
