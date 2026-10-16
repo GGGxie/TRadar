@@ -114,3 +114,95 @@ func TestResearchPreferencesHTTPDefaultsUpdateAndConflict(t *testing.T) {
 		t.Fatalf("invalid=%d %s", invalid.Code, invalid.Body)
 	}
 }
+
+func TestExperimentHTTPCreateReplayListCompleteAndClear(t *testing.T) {
+	handler := testServer(t)
+	projectResponse := call(handler, http.MethodPost, "/api/v1/projects", `{"name":"Practice Target","canonicalUrl":"https://example.com/practice-target"}`, "practice-project", "")
+	var project struct {
+		Data struct {
+			ID string `json:"id"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(projectResponse.Body.Bytes(), &project); err != nil {
+		t.Fatal(err)
+	}
+	path := "/api/v1/projects/" + project.Data.ID + "/experiments"
+	body := `{"title":"验证首次使用路径","hypothesis":"无需文档即可配置","method":"在隔离环境中记录阻塞点","status":"PLANNED","timeBudgetMinutes":120,"actualMinutes":null,"result":"","outcome":null,"evidenceIds":[],"artifactUrls":["https://example.com/demo"],"nextAction":"完成后复盘"}`
+	created := call(handler, http.MethodPost, path, body, "practice-create", "")
+	replayed := call(handler, http.MethodPost, path, body, "practice-create", "")
+	if created.Code != http.StatusCreated || created.Header().Get("ETag") != `"1"` || replayed.Body.String() != created.Body.String() {
+		t.Fatalf("created=%d %s headers=%v replay=%d %s", created.Code, created.Body, created.Header(), replayed.Code, replayed.Body)
+	}
+	var response struct {
+		Data struct {
+			ID string `json:"id"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(created.Body.Bytes(), &response); err != nil {
+		t.Fatal(err)
+	}
+	mismatch := call(handler, http.MethodPost, path, `{"title":"不同内容"}`, "practice-create", "")
+	if mismatch.Code != http.StatusUnprocessableEntity || !strings.Contains(mismatch.Body.String(), "IDEMPOTENCY_MISMATCH") {
+		t.Fatalf("mismatch=%d %s", mismatch.Code, mismatch.Body)
+	}
+	listed := call(handler, http.MethodGet, path+"?status=PLANNED&page=1&pageSize=20", "", "", "")
+	if listed.Code != http.StatusOK || !strings.Contains(listed.Body.String(), `"totalItems":1`) || !strings.Contains(listed.Body.String(), response.Data.ID) {
+		t.Fatalf("listed=%d %s", listed.Code, listed.Body)
+	}
+	readPath := "/api/v1/experiments/" + response.Data.ID
+	read := call(handler, http.MethodGet, readPath, "", "", "")
+	if read.Code != http.StatusOK || read.Header().Get("ETag") != `"1"` {
+		t.Fatalf("read=%d %s headers=%v", read.Code, read.Body, read.Header())
+	}
+	missingCondition := call(handler, http.MethodPatch, readPath, `{"status":"RUNNING"}`, "", "")
+	if missingCondition.Code != http.StatusPreconditionRequired {
+		t.Fatalf("missing condition=%d %s", missingCondition.Code, missingCondition.Body)
+	}
+	invalidComplete := call(handler, http.MethodPatch, readPath, `{"status":"COMPLETED"}`, "", `"1"`)
+	if invalidComplete.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("invalid complete=%d %s", invalidComplete.Code, invalidComplete.Body)
+	}
+	completed := call(handler, http.MethodPatch, readPath, `{"status":"COMPLETED","actualMinutes":95,"result":"需要文档才能完成","outcome":"REFUTED"}`, "", `"1"`)
+	if completed.Code != http.StatusOK || completed.Header().Get("ETag") != `"2"` || !strings.Contains(completed.Body.String(), `"outcome":"REFUTED"`) {
+		t.Fatalf("completed=%d %s headers=%v", completed.Code, completed.Body, completed.Header())
+	}
+	stale := call(handler, http.MethodPatch, readPath, `{"result":"旧页面内容"}`, "", `"1"`)
+	if stale.Code != http.StatusPreconditionFailed {
+		t.Fatalf("stale=%d %s", stale.Code, stale.Body)
+	}
+	cleared := call(handler, http.MethodPatch, readPath, `{"status":"RUNNING","actualMinutes":null,"outcome":null}`, "", `"2"`)
+	if cleared.Code != http.StatusOK || cleared.Header().Get("ETag") != `"3"` || !strings.Contains(cleared.Body.String(), `"actualMinutes":null`) || !strings.Contains(cleared.Body.String(), `"outcome":null`) {
+		t.Fatalf("cleared=%d %s headers=%v", cleared.Code, cleared.Body, cleared.Header())
+	}
+}
+
+func TestExperimentHTTPRejectsUnknownFieldsNullsAndInvalidFilters(t *testing.T) {
+	handler := testServer(t)
+	projectResponse := call(handler, http.MethodPost, "/api/v1/projects", `{"name":"Invalid Practice","canonicalUrl":"https://example.com/invalid-practice"}`, "invalid-practice-project", "")
+	var project struct {
+		Data struct {
+			ID string `json:"id"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(projectResponse.Body.Bytes(), &project); err != nil {
+		t.Fatal(err)
+	}
+	path := "/api/v1/projects/" + project.Data.ID + "/experiments"
+	for name, body := range map[string]string{
+		"missing title": `{}`,
+		"unknown":       `{"title":"x","runCode":true}`,
+		"null title":    `{"title":null}`,
+		"unsafe URL":    `{"title":"x","artifactUrls":["javascript:alert(1)"]}`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			result := call(handler, http.MethodPost, path, body, "invalid-practice-"+name, "")
+			if result.Code != http.StatusBadRequest && result.Code != http.StatusUnprocessableEntity {
+				t.Fatalf("result=%d %s", result.Code, result.Body)
+			}
+		})
+	}
+	badFilter := call(handler, http.MethodGet, path+"?status=EXECUTING", "", "", "")
+	if badFilter.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("bad filter=%d %s", badFilter.Code, badFilter.Body)
+	}
+}

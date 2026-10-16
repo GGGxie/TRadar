@@ -103,6 +103,88 @@ func decodeEntryPatch(r *http.Request) (research.EntryPatch, error) {
 	return input, nil
 }
 
+func (s *Server) projectExperiments(w http.ResponseWriter, r *http.Request) {
+	projectID := r.PathValue("id")
+	switch r.Method {
+	case http.MethodGet:
+		page, size, err := pagination(r)
+		if err != nil {
+			writeError(w, r, err)
+			return
+		}
+		items, total, err := research.ListExperiments(r.Context(), s.db, projectID, research.ExperimentFilter{
+			Status: r.URL.Query().Get("status"), Page: page, PageSize: size,
+		})
+		if err != nil {
+			writeError(w, r, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, response{Data: items, Pagination: &pageInfo{page, size, total, (total + size - 1) / size}})
+	case http.MethodPost:
+		input, err := decodeExperimentPatch(r)
+		if err != nil {
+			writeError(w, r, err)
+			return
+		}
+		s.mutate(w, r, "experiment:create:"+projectID, input, func(tx *sql.Tx) (int, any, error) {
+			item, createErr := research.CreateExperiment(r.Context(), tx, projectID, input, s.now())
+			return http.StatusCreated, item, createErr
+		})
+	default:
+		methodError(w, r)
+	}
+}
+
+func (s *Server) experiment(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	switch r.Method {
+	case http.MethodGet:
+		item, err := research.GetExperiment(r.Context(), s.db, id)
+		if err != nil {
+			writeError(w, r, err)
+			return
+		}
+		w.Header().Set("ETag", fmt.Sprintf(`"%d"`, item.Revision))
+		writeJSON(w, http.StatusOK, response{Data: item})
+	case http.MethodPatch:
+		expected, err := revision(r)
+		if err != nil {
+			writeError(w, r, err)
+			return
+		}
+		input, err := decodeExperimentPatch(r)
+		if err != nil {
+			writeError(w, r, err)
+			return
+		}
+		var item research.Experiment
+		err = storage.WithTx(r.Context(), s.db, func(tx *sql.Tx) error {
+			var updateErr error
+			item, updateErr = research.UpdateExperiment(r.Context(), tx, id, expected, input, s.now())
+			return updateErr
+		})
+		if err != nil {
+			writeError(w, r, err)
+			return
+		}
+		w.Header().Set("ETag", fmt.Sprintf(`"%d"`, item.Revision))
+		writeJSON(w, http.StatusOK, response{Data: item})
+	default:
+		methodError(w, r)
+	}
+}
+
+func decodeExperimentPatch(r *http.Request) (research.ExperimentPatch, error) {
+	var input research.ExperimentPatch
+	fields, err := decodeObject(r, &input, map[string]bool{"actualMinutes": true, "outcome": true})
+	if err != nil {
+		return input, err
+	}
+	_, input.ActualMinutesSet = fields["actualMinutes"]
+	_, input.OutcomeSet = fields["outcome"]
+	return input, nil
+}
+
 func (s *Server) researchPreferences(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
