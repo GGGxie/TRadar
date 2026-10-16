@@ -33,6 +33,9 @@
 | 趋势排序与雷达 | `trend-v1` 主信号评分、同平台去重、跨源加分、缺持续性部分结果、稳定并列排序和三点异常提示均有纯函数测试；SQLite 查询先评分后筛选分页，24h/7d 与来源筛选经 Chromium 验证 |
 | 分析版本与规则 | SCREEN 四节、DEEP 六节、事实引用、跨项目拒绝、版本递增、规则模板、创始人自述标签、私密证据本地使用、冻结证据/趋势、来源重关联和项目版本变化均由数据库及 HTTP 测试覆盖 |
 | 分析界面 | 证据选择、规则初筛、人工事实修订、旧版本保留、公开/私密快照、事实/推测/判断/未知标签、上下文变化提示和模型关闭状态经组件及 Chromium 验证；axe 违规为零 |
+| 个人研究数据与 API | 单项目唯一记录、默认值、Unicode NFC 标签归一化、拉丁大小写去重、字段边界、过滤搜索、幂等创建、ETag/If-Match 冲突、重启持久化和个人正文不受项目变化影响，均由 SQLite 仓库及 HTTP 测试覆盖 |
+| 研究偏好 | 默认关注方向与 3/2/1 建议、0–100 边界、版本冲突和持久化均由仓库/API 测试覆盖；建议只提示节奏，不限制保存 |
+| 个人研究界面 | 项目详情创建/编辑、收藏/标签/阶段/判断/笔记/下一步、认知库搜索筛选、偏好设置及 360px 布局经组件和 Chromium 验证；412 会展示服务器最新版本并保留本地草稿，重试使用新 revision；axe 违规为零 |
 
 ## 最近一次完整检查
 
@@ -44,12 +47,13 @@ GOCACHE=/tmp/tradar-go-cache go vet ./...
 npm --prefix web run test -- --run
 npm --prefix web run build
 npm --prefix web run test:e2e
-npm --prefix web audit --json
+npm --prefix web audit --offline --json
 ```
 
-结果：Go 全部包通过 race 测试及 vet；Vitest 为 4 个文件、8 个测试通过；Vite 生产构建成功；
-Playwright Chromium 为 3 条流程通过。浏览器流程覆盖项目创建、证据新增和修订、项目编辑、刷新、
-搜索、规则初筛、人工事实引用、版本上下文变化、移动端布局、来源配置和手动采集，页面错误为零，
+结果：Go 全部包通过 race 测试及 vet；Vitest 为 7 个文件、12 个测试通过；Vite 生产构建成功；
+Playwright Chromium 为 5 条流程通过。浏览器流程覆盖项目创建、证据新增和修订、项目编辑、刷新、
+搜索、规则初筛、人工事实引用、版本上下文变化、个人研究保存与冲突合并、认知库筛选、
+移动端布局、来源配置和手动采集，页面错误为零，
 所检查页面 axe 违规为零。npm 完整依赖
 审计为 0 条已知漏洞。真实冒烟通过显式 `TRADAR_LIVE_SMOKE=1` 单独执行，不属于默认测试联网行为。
 
@@ -59,10 +63,11 @@ Playwright Chromium 为 3 条流程通过。浏览器流程覆盖项目创建、
 - [`catalog-mobile.png`](screenshots/catalog-mobile.png)
 - [`evidence-desktop.png`](screenshots/evidence-desktop.png)
 - [`analysis-desktop.png`](screenshots/analysis-desktop.png)
+- [`library-mobile.png`](screenshots/library-mobile.png)
 
 ## 当前限制
 
 Product Hunt 真实接口尚未使用用户账号 Token 联调，GitHub 日历史也未在真实冒烟中覆盖。
-研究记录、日报、演示模式和可选模型尚未实现。当前运行不会访问人工录入的 URL，
+实践记录、日报、演示模式和可选模型尚未实现。当前运行不会访问人工录入的 URL，
 也不会静默生成演示指标或商业结论。
 公网发布、付费服务与外部通知不在当前授权范围内。

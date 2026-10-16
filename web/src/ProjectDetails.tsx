@@ -10,6 +10,7 @@ import {
 import { ProjectForm } from "./ProjectForm";
 import { EvidencePanel } from "./EvidencePanel";
 import { AnalysisPanel } from "./AnalysisPanel";
+import { ResearchPanel } from "./ResearchPanel";
 export function ProjectDetails({ id }: { id: string }) {
   const [project, setProject] = useState<Project | null>(null);
   const [error, setError] = useState("");
@@ -117,6 +118,7 @@ export function ProjectDetails({ id }: { id: string }) {
             project={project}
             evidenceRevision={evidenceRevision}
           />
+          <ResearchPanel project={project} />
           <EvidencePanel
             projectId={project.id}
             onChanged={() => setEvidenceRevision((value) => value + 1)}

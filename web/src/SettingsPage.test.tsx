@@ -92,6 +92,16 @@ describe("SettingsPage", () => {
       "fetch",
       vi.fn((input: RequestInfo | URL) => {
         const path = String(input);
+        if (path.endsWith("/research-preferences"))
+          return json({
+            data: {
+              revision: 1,
+              focusTopics: ["AI Agent", "开发者工具", "SaaS"],
+              dailySaveTarget: 3,
+              weeklyDeepTarget: 2,
+              monthlyPracticeTarget: 1,
+            },
+          });
         if (path.includes("/sources?"))
           return json({ data: sources, pagination: {} });
         return json({ data: [], pagination: {} });
@@ -127,6 +137,16 @@ describe("SettingsPage", () => {
       vi.fn((input: RequestInfo | URL, options?: RequestInit) => {
         const path = String(input);
         calls.push({ path, options });
+        if (path.endsWith("/research-preferences"))
+          return json({
+            data: {
+              revision: 1,
+              focusTopics: ["AI Agent", "开发者工具", "SaaS"],
+              dailySaveTarget: 3,
+              weeklyDeepTarget: 2,
+              monthlyPracticeTarget: 1,
+            },
+          });
         if (path.includes("/sources?") && !options?.method)
           return json({ data: sources, pagination: {} });
         if (path.endsWith("/sources/GITHUB") && options?.method === "PATCH")

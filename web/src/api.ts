@@ -240,6 +240,43 @@ export interface AnalysisCapabilities {
   maxOutputTokens: number | null;
   dailyTokenBudget: number | null;
 }
+export type ResearchStage =
+  | "SCREENING"
+  | "DEEP_RESEARCH"
+  | "PRACTICE"
+  | "REVIEWED"
+  | "ARCHIVED";
+export type ResearchDecision =
+  | "UNDECIDED"
+  | "OBSERVE"
+  | "LEARN"
+  | "USE"
+  | "VALIDATE"
+  | "PASS";
+export interface ResearchFields {
+  isStarred: boolean;
+  tags: string[];
+  stage: ResearchStage;
+  decision: ResearchDecision;
+  rationale: string;
+  notes: string;
+  nextAction: string;
+  nextActionAt: string | null;
+}
+export interface ResearchEntry extends ResearchFields {
+  id: string;
+  projectId: string;
+  revision: number;
+  createdAt: string;
+  updatedAt: string;
+}
+export interface ResearchPreferences {
+  revision: number;
+  focusTopics: string[];
+  dailySaveTarget: number;
+  weeklyDeepTarget: number;
+  monthlyPracticeTarget: number;
+}
 export class ApiError extends Error {
   constructor(
     message: string,
@@ -369,6 +406,60 @@ export function runRulesAnalysis(
 export function getAnalysisCapabilities(signal?: AbortSignal) {
   return request<Resource<AnalysisCapabilities>>("/analysis-capabilities", {
     signal,
+  });
+}
+export function getResearch(projectId: string, signal?: AbortSignal) {
+  return request<Resource<ResearchEntry>>(
+    `/projects/${encodeURIComponent(projectId)}/research`,
+    { signal },
+  );
+}
+export function saveResearch(
+  projectId: string,
+  fields: ResearchFields,
+  key: string,
+  current?: ResearchEntry,
+) {
+  return request<Resource<ResearchEntry>>(
+    `/projects/${encodeURIComponent(projectId)}/research`,
+    current
+      ? {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            "If-Match": `"${current.revision}"`,
+          },
+          body: JSON.stringify(fields),
+        }
+      : {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Idempotency-Key": key,
+          },
+          body: JSON.stringify(fields),
+        },
+  );
+}
+export function listResearch(params: URLSearchParams, signal?: AbortSignal) {
+  return request<Page<ResearchEntry>>(`/research?${params}`, { signal });
+}
+export function getResearchPreferences(signal?: AbortSignal) {
+  return request<Resource<ResearchPreferences>>("/research-preferences", {
+    signal,
+  });
+}
+export function updateResearchPreferences(
+  current: ResearchPreferences,
+  patch: Partial<Omit<ResearchPreferences, "revision">>,
+) {
+  return request<Resource<ResearchPreferences>>("/research-preferences", {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+      "If-Match": `"${current.revision}"`,
+    },
+    body: JSON.stringify(patch),
   });
 }
 export function listSources(signal?: AbortSignal) {

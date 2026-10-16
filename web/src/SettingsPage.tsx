@@ -11,6 +11,7 @@ import {
   type SourceConfig,
   type SourceView,
 } from "./api";
+import { ResearchPreferencesPanel } from "./ResearchPreferencesPanel";
 
 const sourceNames: Record<RemoteSource, string> = {
   GITHUB: "GitHub",
@@ -117,6 +118,7 @@ export function SettingsPage() {
           {error}
         </p>
       )}
+      <ResearchPreferencesPanel />
       {loading ? (
         <p className="loading">正在读取来源状态…</p>
       ) : (

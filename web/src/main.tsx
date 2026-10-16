@@ -3,15 +3,18 @@ import { createRoot } from "react-dom/client";
 import { ProjectList } from "./ProjectList";
 import { ProjectDetails } from "./ProjectDetails";
 import { SettingsPage } from "./SettingsPage";
+import { LibraryPage } from "./LibraryPage";
 import "./styles.css";
 import "./evidence.css";
 import "./analysis.css";
+import "./research.css";
 function App() {
   const path = window.location.pathname;
   const projectID = path.startsWith("/projects/")
     ? path.slice("/projects/".length)
     : null;
   const isSettings = path === "/settings";
+  const isLibrary = path === "/library";
   const today = new Intl.DateTimeFormat("zh-CN", {
     timeZone: "Asia/Shanghai",
     year: "numeric",
@@ -39,10 +42,22 @@ function App() {
         <nav aria-label="主导航">
           <a
             href="/radar"
-            className={`nav-item ${!projectID && !isSettings ? "active" : ""}`}
-            aria-current={!projectID && !isSettings ? "page" : undefined}
+            className={`nav-item ${!projectID && !isSettings && !isLibrary ? "active" : ""}`}
+            aria-current={
+              !projectID && !isSettings && !isLibrary ? "page" : undefined
+            }
           >
             <span aria-hidden="true">◎</span> 项目目录
+            <span className="nav-chevron" aria-hidden="true">
+              ›
+            </span>
+          </a>
+          <a
+            href="/library"
+            className={`nav-item ${isLibrary ? "active" : ""}`}
+            aria-current={isLibrary ? "page" : undefined}
+          >
+            <span aria-hidden="true">☆</span> 认知库
             <span className="nav-chevron" aria-hidden="true">
               ›
             </span>
@@ -81,7 +96,13 @@ function App() {
           <span>
             工作空间 <span aria-hidden="true">/</span>{" "}
             <strong>
-              {projectID ? "项目详情" : isSettings ? "信息源设置" : "项目目录"}
+              {projectID
+                ? "项目详情"
+                : isSettings
+                  ? "信息源设置"
+                  : isLibrary
+                    ? "认知库"
+                    : "项目目录"}
             </strong>
           </span>
           <time>{today}</time>
@@ -91,6 +112,8 @@ function App() {
             <ProjectDetails id={projectID} />
           ) : isSettings ? (
             <SettingsPage />
+          ) : isLibrary ? (
+            <LibraryPage />
           ) : (
             <ProjectList />
           )}

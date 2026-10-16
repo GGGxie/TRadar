@@ -127,6 +127,10 @@ test("source settings explain availability and safely queue a collection", async
   await expect(
     page.getByRole("heading", { name: "信息源与采集" }),
   ).toBeVisible();
+  await expect(page.getByLabel("每日收藏建议")).toHaveValue("3");
+  await page.getByLabel("每日收藏建议").fill("0");
+  await page.getByRole("button", { name: "保存研究偏好" }).click();
+  await expect(page.getByText("研究偏好已保存")).toBeVisible();
   await expect(page.getByText("剩余 54 次")).toBeVisible();
   await expect(
     page.getByText("需要 Product Hunt Token 才能采集"),
