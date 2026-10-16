@@ -1,6 +1,7 @@
 # SPEC — daily-brief
 
-状态：**详细规格草案，待用户评审**。日期：2026-10-13。尚未实现或运行测试。
+状态：**T16 核心已实现并验证，T17 接口、调度、导出与界面待实现**。规格日期：2026-10-13；
+实现进度更新：2026-10-16。
 范围依据：[能力图](CAPABILITY-MAP.md)；通用时间、幂等、分页、安全及技术约定见
 [spec-common](docs/spec-common.md)。
 
@@ -152,7 +153,8 @@ Markdown 必须来自保存快照，含日期 / 时区 / version / cutoffAt / �
 目标目录 `internal/brief/`、相邻 `*_test.go`、`web/src/features/brief/` 与 `web/e2e/brief.spec.ts`。
 Go/TypeScript 风格示例、技术栈及全量目标命令沿用 spec-common；本模块验证目标为
 `go test -race ./internal/brief/... ./internal/httpapi/...` 与
-`npm --prefix web run test:e2e -- brief.spec.ts`。当前尚无应用，这些不是已执行命令。
+`npm --prefix web run test:e2e -- brief.spec.ts`。截至 2026-10-16，brief 领域测试及全量 Go
+race/vet 已执行通过；HTTP、调度、Markdown 和浏览器部分仍属于 T17，不能据此宣称已验证。
 
 使用固定时钟、临时 SQLite 和确定性输入做选择 / 版本 / 调度集成测试，浏览器验证站内阅读和下载。
 

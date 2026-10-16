@@ -3,6 +3,14 @@
 2026-10-14。用户连续要求进入下一步，按既定能力范围实施；不扩大到公网发布或付费服务。
 规格入口：`docs/spec-overview.md`，六份 `SPEC-*.md` 是行为基线，完成情况以 `tasks/todo.md` 记录。
 
+## 任务跟踪决策
+
+本计划建立时没有指定外部任务系统，因此按 agent-skills 的默认约定使用
+`tasks/todo.md` 作为唯一任务清单。仓库已连接 GitHub，但“存在远端仓库”不等于已经把
+GitHub Issues 指定为任务清单；同时维护两份完成状态会产生漂移。若后续明确改用 Issues，
+应一次性迁移尚未完成的任务与检查点，在 `tasks/plan.md` 保留 Issue 链接索引，并同步修改
+`AGENTS.md`，而不是继续维护重复清单。
+
 ## 方法与架构
 
 采用 agent-skills 的 planning-and-task-breakdown、incremental-implementation 与 TDD。
