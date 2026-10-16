@@ -65,6 +65,36 @@ test("create, read, edit and reload a project with no unexpected dialog", async 
   await expect(
     page.getByRole("heading", { name: "官方定价说明", exact: true }),
   ).toBeVisible();
+  await page.getByRole("button", { name: "生成规则初筛" }).click();
+  const rulesBuilder = page.locator(".analysis-builder");
+  await rulesBuilder.getByLabel(/官方定价说明（补充期间）/).check();
+  await rulesBuilder.getByRole("button", { name: "生成并冻结版本" }).click();
+  await expect(
+    page.getByText("规则版本已生成，引用和当前趋势已冻结。"),
+  ).toBeVisible();
+  await expect(page.getByText("规则模板", { exact: true })).toBeVisible();
+  await expect(page.getByText(/官方定价说明（补充期间）.*记录/)).toBeVisible();
+  await page.getByText(/冻结证据快照/).click();
+  await expect(
+    page.getByText("私密证据 · 仅本地规则使用", { exact: true }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "基于此版修订" }).click();
+  const manualBuilder = page.locator(".manual-analysis");
+  await manualBuilder
+    .getByLabel("对象是什么 · 声明 1 类型")
+    .selectOption("FACT");
+  await manualBuilder
+    .getByLabel("对象是什么 · 声明 1 内容")
+    .fill("定价页公开列出了基础套餐价格。");
+  await manualBuilder
+    .getByLabel("对象是什么 · 声明 1 引用 官方定价说明（补充期间）")
+    .check();
+  await manualBuilder.getByRole("button", { name: "保存人工版本" }).click();
+  await expect(
+    page.getByText("人工版本已保存，旧版本继续保留。"),
+  ).toBeVisible();
+  await expect(page.getByText("人工版本", { exact: true })).toBeVisible();
+  await expect(page.getByText("事实", { exact: true }).first()).toBeVisible();
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
   await page.evaluate(() => {
     window.scrollTo(0, 0);
@@ -73,7 +103,7 @@ test("create, read, edit and reload a project with no unexpected dialog", async 
     }
   });
   await page.screenshot({
-    path: testInfo.outputPath("evidence-desktop.png"),
+    path: testInfo.outputPath("analysis-desktop.png"),
     fullPage: true,
   });
   await page.getByRole("button", { name: "编辑信息", exact: true }).click();
@@ -83,6 +113,9 @@ test("create, read, edit and reload a project with no unexpected dialog", async 
   await page.getByRole("button", { name: "保存项目", exact: true }).click();
   await expect(
     page.getByText("已更新的项目介绍，刷新后应保留。", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByText(/项目信息或证据关联已变化/).first(),
   ).toBeVisible();
   await page.reload();
   await expect(

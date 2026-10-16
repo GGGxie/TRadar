@@ -9,10 +9,12 @@ import {
 } from "./api";
 import { ProjectForm } from "./ProjectForm";
 import { EvidencePanel } from "./EvidencePanel";
+import { AnalysisPanel } from "./AnalysisPanel";
 export function ProjectDetails({ id }: { id: string }) {
   const [project, setProject] = useState<Project | null>(null);
   const [error, setError] = useState("");
   const [editing, setEditing] = useState(false);
+  const [evidenceRevision, setEvidenceRevision] = useState(0);
   useEffect(() => {
     const controller = new AbortController();
     request<Resource<Project>>(`/projects/${encodeURIComponent(id)}`, {
@@ -111,7 +113,14 @@ export function ProjectDetails({ id }: { id: string }) {
               </p>
             </div>
           </section>
-          <EvidencePanel projectId={project.id} />
+          <AnalysisPanel
+            project={project}
+            evidenceRevision={evidenceRevision}
+          />
+          <EvidencePanel
+            projectId={project.id}
+            onChanged={() => setEvidenceRevision((value) => value + 1)}
+          />
         </>
       )}
     </>

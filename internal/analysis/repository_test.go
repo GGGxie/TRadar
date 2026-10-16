@@ -103,6 +103,13 @@ func TestRulesRunKeepsPrivateEvidenceLocalAndModelDisabled(t *testing.T) {
 	if !strings.Contains(view.Sections[2].Claims[0].Text, "未独立核实") {
 		t.Fatalf("founder label lost: %+v", view.Sections[2])
 	}
+	for _, section := range view.Sections {
+		for _, claim := range section.Claims {
+			if claim.EvidenceIDs == nil {
+				t.Fatalf("evidenceIds must encode as an array: %+v", claim)
+			}
+		}
+	}
 	err = storage.WithTx(ctx, db, func(tx *sql.Tx) error {
 		_, createErr := CreateRulesRun(ctx, tx, project.ID, CreateRunInput{Level: "SCREEN", Mode: "MODEL", ProjectRevision: project.Revision, EvidenceIDs: []string{evidence.ID}}, now)
 		return createErr

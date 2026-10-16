@@ -1,6 +1,6 @@
 # 实施验证记录
 
-更新时间：2026-10-15（Asia/Shanghai）。这里只记录实际执行过的检查；未列模块仍按
+更新时间：2026-10-16（Asia/Shanghai）。这里只记录实际执行过的检查；未列模块仍按
 [`tasks/todo.md`](../tasks/todo.md) 视为未完成。
 
 ## 已验证范围
@@ -31,6 +31,8 @@
 | 手动限额反馈 | GitHub 本地搜索预算耗尽时，创建任务前返回 429 `SOURCE_RATE_LIMITED` 与 `Retry-After`，不留下排队任务 |
 | 趋势增长计算 | 固定 asOf 的 24h/7d 容差窗口、真实跨度日均速度、下降、零基数、三点加速度、未来样本排除、累计/来源日桶隔离及至少四个完整日窗的持续性均由表驱动测试覆盖 |
 | 趋势排序与雷达 | `trend-v1` 主信号评分、同平台去重、跨源加分、缺持续性部分结果、稳定并列排序和三点异常提示均有纯函数测试；SQLite 查询先评分后筛选分页，24h/7d 与来源筛选经 Chromium 验证 |
+| 分析版本与规则 | SCREEN 四节、DEEP 六节、事实引用、跨项目拒绝、版本递增、规则模板、创始人自述标签、私密证据本地使用、冻结证据/趋势、来源重关联和项目版本变化均由数据库及 HTTP 测试覆盖 |
+| 分析界面 | 证据选择、规则初筛、人工事实修订、旧版本保留、公开/私密快照、事实/推测/判断/未知标签、上下文变化提示和模型关闭状态经组件及 Chromium 验证；axe 违规为零 |
 
 ## 最近一次完整检查
 
@@ -45,9 +47,10 @@ npm --prefix web run test:e2e
 npm --prefix web audit --json
 ```
 
-结果：Go 全部包通过 race 测试及 vet；Vitest 为 3 个文件、6 个测试通过；Vite 生产构建成功；
+结果：Go 全部包通过 race 测试及 vet；Vitest 为 4 个文件、8 个测试通过；Vite 生产构建成功；
 Playwright Chromium 为 3 条流程通过。浏览器流程覆盖项目创建、证据新增和修订、项目编辑、刷新、
-搜索、移动端布局、来源配置和手动采集，页面错误为零，所检查页面 axe 违规为零。npm 完整依赖
+搜索、规则初筛、人工事实引用、版本上下文变化、移动端布局、来源配置和手动采集，页面错误为零，
+所检查页面 axe 违规为零。npm 完整依赖
 审计为 0 条已知漏洞。真实冒烟通过显式 `TRADAR_LIVE_SMOKE=1` 单独执行，不属于默认测试联网行为。
 
 浏览器审阅截图：
@@ -55,10 +58,11 @@ Playwright Chromium 为 3 条流程通过。浏览器流程覆盖项目创建、
 - [`catalog-desktop.png`](screenshots/catalog-desktop.png)
 - [`catalog-mobile.png`](screenshots/catalog-mobile.png)
 - [`evidence-desktop.png`](screenshots/evidence-desktop.png)
+- [`analysis-desktop.png`](screenshots/analysis-desktop.png)
 
 ## 当前限制
 
 Product Hunt 真实接口尚未使用用户账号 Token 联调，GitHub 日历史也未在真实冒烟中覆盖。
-分析、研究记录、日报、演示模式和可选模型尚未实现。当前运行不会访问人工录入的 URL，
+研究记录、日报、演示模式和可选模型尚未实现。当前运行不会访问人工录入的 URL，
 也不会静默生成演示指标或商业结论。
 公网发布、付费服务与外部通知不在当前授权范围内。

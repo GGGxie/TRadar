@@ -17,7 +17,13 @@ const emptyDraft: EvidenceInput = {
   isPublic: false,
 };
 
-export function EvidencePanel({ projectId }: { projectId: string }) {
+export function EvidencePanel({
+  projectId,
+  onChanged,
+}: {
+  projectId: string;
+  onChanged?: () => void;
+}) {
   const [page, setPage] = useState(1);
   const [result, setResult] = useState<Page<Evidence> | null>(null);
   const [error, setError] = useState("");
@@ -111,6 +117,7 @@ export function EvidencePanel({ projectId }: { projectId: string }) {
       const saved = await saveEvidence(projectId, input, intent.current);
       dirty.current = false;
       setDraft(null);
+      onChanged?.();
       if (page !== 1) {
         setPage(1);
         return;

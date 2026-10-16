@@ -288,7 +288,7 @@ func validateContent(level string, input Content) (Content, []string, error) {
 			if duplicate(claim.EvidenceIDs) {
 				return Content{}, nil, fault.Field("evidenceIds", "同一声明不能重复引用证据")
 			}
-			claim.EvidenceIDs = append([]string(nil), claim.EvidenceIDs...)
+			claim.EvidenceIDs = append([]string{}, claim.EvidenceIDs...)
 			content.Sections[index].Claims[claimIndex] = claim
 			for _, id := range claim.EvidenceIDs {
 				if id == "" {

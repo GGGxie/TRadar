@@ -5,6 +5,7 @@ import { ProjectDetails } from "./ProjectDetails";
 import { SettingsPage } from "./SettingsPage";
 import "./styles.css";
 import "./evidence.css";
+import "./analysis.css";
 function App() {
   const path = window.location.pathname;
   const projectID = path.startsWith("/projects/")

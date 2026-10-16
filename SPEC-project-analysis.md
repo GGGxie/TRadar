@@ -1,6 +1,6 @@
 # SPEC — project-analysis
 
-状态：**详细规格草案，待用户评审**。日期：2026-10-13。尚未实现或运行测试。
+状态：**人工与规则分析已实现并验证；可选模型留待 T18**。日期：2026-10-16。
 范围依据：[能力图](CAPABILITY-MAP.md)；共享技术、运行、安全、API 与测试约定见
 [spec-common](docs/spec-common.md)。本文只定义规格，不包含实施计划。
 
@@ -160,9 +160,10 @@ interface AnalysisCapabilities {
 ## 目标目录、命令与代码风格
 
 实现目标为 `internal/analysis/`、相邻 `*_test.go`、`internal/httpapi/` 及
-`web/src/features/analysis/`。采用 spec-common 中 Go/TypeScript 风格、类型示例、版本策略及全量命令；
+`web/src/AnalysisPanel.tsx`。采用 spec-common 中 Go/TypeScript 风格、类型示例、版本策略及全量命令；
 本模块目标验证命令为 `go test -race ./internal/analysis/... ./internal/httpapi/...`。
-这些路径与命令尚未实现，当前不执行，也不宣称通过。
+人工与规则分析路径已经实现；目标命令及完整浏览器路径的实际结果记录在
+[验证记录](docs/verification.md)。模型提供者、预算与异步失败场景仍由 T18 实现。
 
 ## 验收场景
 

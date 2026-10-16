@@ -168,6 +168,78 @@ export interface ProjectTrend {
   project: Project;
   trend: TrendResult;
 }
+export type AnalysisLevel = "SCREEN" | "DEEP";
+export type AnalysisOrigin = "MANUAL" | "RULES" | "MODEL";
+export type ClaimKind = "FACT" | "HYPOTHESIS" | "JUDGMENT" | "UNKNOWN";
+export type AnalysisSectionKey =
+  | "WHAT"
+  | "PROBLEM"
+  | "ATTENTION"
+  | "FIT"
+  | "NEED"
+  | "PRODUCT"
+  | "TECH"
+  | "GROWTH"
+  | "BUSINESS"
+  | "COMPETITION";
+export interface AnalysisClaim {
+  kind: ClaimKind;
+  text: string;
+  evidenceIds: string[];
+}
+export interface AnalysisSection {
+  key: AnalysisSectionKey;
+  claims: AnalysisClaim[];
+}
+export interface AnalysisContent {
+  sections: AnalysisSection[];
+  openQuestions: string[];
+  nextChecks: string[];
+}
+export interface AnalysisVersion extends AnalysisContent {
+  id: string;
+  projectId: string;
+  level: AnalysisLevel;
+  version: number;
+  origin: AnalysisOrigin;
+  projectRevision: number;
+  basedOnAnalysisId: string | null;
+  createdAt: string;
+  cutoffAt: string;
+  rulesVersion: string | null;
+  model: {
+    provider: string;
+    name: string;
+    promptVersion: string;
+  } | null;
+  evidenceIds: string[];
+  evidenceSnapshots: Evidence[];
+  trendSnapshot: TrendResult | null;
+  contextChanged: boolean;
+}
+export interface AnalysisRun {
+  id: string;
+  projectId: string;
+  level: AnalysisLevel;
+  mode: "RULES" | "MODEL";
+  status: "PENDING" | "RUNNING" | "SUCCEEDED" | "FAILED" | "INTERRUPTED";
+  revision: number;
+  projectRevision: number;
+  cutoffAt: string;
+  analysisId: string | null;
+  errorCode: string | null;
+  usage: { inputTokens: number | null; outputTokens: number | null } | null;
+  createdAt: string;
+  finishedAt: string | null;
+}
+export interface AnalysisCapabilities {
+  rulesEnabled: boolean;
+  modelEnabled: boolean;
+  provider: string | null;
+  model: string | null;
+  maxOutputTokens: number | null;
+  dailyTokenBudget: number | null;
+}
 export class ApiError extends Error {
   constructor(
     message: string,
@@ -246,6 +318,57 @@ export function saveEvidence(
     method: "POST",
     headers: { "Content-Type": "application/json", "Idempotency-Key": key },
     body: JSON.stringify(input),
+  });
+}
+export function listAnalyses(
+  projectId: string,
+  level: AnalysisLevel,
+  signal?: AbortSignal,
+) {
+  return request<Page<AnalysisVersion>>(
+    `/projects/${encodeURIComponent(projectId)}/analyses?level=${level}&page=1&pageSize=20`,
+    { signal },
+  );
+}
+export function createAnalysis(
+  projectId: string,
+  input: AnalysisContent & {
+    level: AnalysisLevel;
+    projectRevision: number;
+    basedOnAnalysisId?: string;
+  },
+  key: string,
+) {
+  return request<Resource<AnalysisVersion>>(
+    `/projects/${encodeURIComponent(projectId)}/analyses`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Idempotency-Key": key },
+      body: JSON.stringify(input),
+    },
+  );
+}
+export function runRulesAnalysis(
+  projectId: string,
+  input: {
+    level: AnalysisLevel;
+    projectRevision: number;
+    evidenceIds: string[];
+  },
+  key: string,
+) {
+  return request<Resource<AnalysisRun>>(
+    `/projects/${encodeURIComponent(projectId)}/analysis-runs`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Idempotency-Key": key },
+      body: JSON.stringify({ ...input, mode: "RULES" }),
+    },
+  );
+}
+export function getAnalysisCapabilities(signal?: AbortSignal) {
+  return request<Resource<AnalysisCapabilities>>("/analysis-capabilities", {
+    signal,
   });
 }
 export function listSources(signal?: AbortSignal) {
