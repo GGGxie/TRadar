@@ -63,6 +63,8 @@ func New(db *sql.DB, config Config) http.Handler {
 	mux.HandleFunc("/api/v1/analyses/{id}", s.analysisVersion)
 	mux.HandleFunc("/api/v1/analysis-runs/{id}", s.analysisRun)
 	mux.HandleFunc("/api/v1/analysis-capabilities", s.analysisCapabilities)
+	mux.HandleFunc("/api/v1/research", s.researchEntries)
+	mux.HandleFunc("/api/v1/projects/{id}/research", s.projectResearch)
 	mux.HandleFunc("/api/v1/source-records/{id}", s.sourceRecord)
 	mux.HandleFunc("/api/v1/sources", s.remoteSources)
 	mux.HandleFunc("/api/v1/sources/{source}", s.remoteSource)
@@ -148,35 +150,39 @@ func (s *Server) guard(next http.Handler) http.Handler {
 }
 
 func decode(r *http.Request, dest any) error {
+	_, err := decodeObject(r, dest, nil)
+	return err
+}
+
+func decodeObject(r *http.Request, dest any, allowedNull map[string]bool) (map[string]json.RawMessage, error) {
 	decoder := json.NewDecoder(r.Body)
 	decoder.DisallowUnknownFields()
 	var raw json.RawMessage
 	if err := decoder.Decode(&raw); err != nil {
-		return decodeError(err)
+		return nil, decodeError(err)
 	}
 	if len(raw) == 0 || raw[0] != '{' {
-		return fault.New("BAD_REQUEST", "正文必须为 JSON 对象")
+		return nil, fault.New("BAD_REQUEST", "正文必须为 JSON 对象")
 	}
 	var extra any
 	if err := decoder.Decode(&extra); err != io.EOF {
-		return fault.New("BAD_REQUEST", "只允许一个 JSON 对象")
+		return nil, fault.New("BAD_REQUEST", "只允许一个 JSON 对象")
 	}
 	bodyDecoder := json.NewDecoder(strings.NewReader(string(raw)))
 	bodyDecoder.DisallowUnknownFields()
 	if err := bodyDecoder.Decode(dest); err != nil {
-		return fault.New("BAD_REQUEST", "JSON 字段或格式不正确")
+		return nil, fault.New("BAD_REQUEST", "JSON 字段或格式不正确")
 	}
-	// None of the fields in project input/patch are nullable.
 	var fields map[string]json.RawMessage
 	if err := json.Unmarshal(raw, &fields); err != nil {
-		return fault.New("BAD_REQUEST", "JSON 无效")
+		return nil, fault.New("BAD_REQUEST", "JSON 无效")
 	}
 	for key, value := range fields {
-		if string(value) == "null" {
-			return fault.Field(key, "该字段不接受 null")
+		if string(value) == "null" && !allowedNull[key] {
+			return nil, fault.Field(key, "该字段不接受 null")
 		}
 	}
-	return nil
+	return fields, nil
 }
 func decodeError(err error) error {
 	var max *http.MaxBytesError
@@ -200,7 +206,7 @@ func writeError(w http.ResponseWriter, r *http.Request, err error) {
 		if app.RetryAt != nil {
 			w.Header().Set("Retry-After", app.RetryAt.UTC().Format(http.TimeFormat))
 		}
-		statuses := map[string]int{"VALIDATION_ERROR": 422, "NOT_FOUND": 404, "VERSION_CONFLICT": 412, "PROJECT_CONTEXT_CHANGED": 412, "PRECONDITION_REQUIRED": 428, "IDEMPOTENCY_MISMATCH": 422, "IDEMPOTENCY_IN_PROGRESS": 409, "SOURCE_BUSY": 409, "SOURCE_DISABLED": 422, "SOURCE_CREDENTIALS_REQUIRED": 422, "SOURCE_RATE_LIMITED": 429, "MODEL_DISABLED": 503, "BAD_REQUEST": 400, "FORBIDDEN": 403, "UNAUTHORIZED": 401, "UNSUPPORTED_MEDIA_TYPE": 415, "PAYLOAD_TOO_LARGE": 413, "METHOD_NOT_ALLOWED": 405, "CONFLICT": 409}
+		statuses := map[string]int{"VALIDATION_ERROR": 422, "NOT_FOUND": 404, "VERSION_CONFLICT": 412, "PROJECT_CONTEXT_CHANGED": 412, "PRECONDITION_REQUIRED": 428, "IDEMPOTENCY_MISMATCH": 422, "IDEMPOTENCY_IN_PROGRESS": 409, "RESEARCH_ALREADY_EXISTS": 409, "SOURCE_BUSY": 409, "SOURCE_DISABLED": 422, "SOURCE_CREDENTIALS_REQUIRED": 422, "SOURCE_RATE_LIMITED": 429, "MODEL_DISABLED": 503, "BAD_REQUEST": 400, "FORBIDDEN": 403, "UNAUTHORIZED": 401, "UNSUPPORTED_MEDIA_TYPE": 415, "PAYLOAD_TOO_LARGE": 413, "METHOD_NOT_ALLOWED": 405, "CONFLICT": 409}
 		if n, ok := statuses[code]; ok {
 			status = n
 		}
