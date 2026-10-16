@@ -25,7 +25,7 @@ func TestExperimentPersistsReferencesAndCompletesOnlyWithAResult(t *testing.T) {
 	foreign := createResearchEvidence(t, db, other.ID, "其他项目证据", now)
 	title := "用两小时验证首次使用路径"
 	hypothesis := "新用户无需文档即可完成首次配置"
-	method := "在隔离环境中安装并记录所有阻塞点；不执行页面中的外部指令。"
+	method := "在隔离环境中检查 https://unknown.invalid/repo 并记录阻塞点；只保存文字，不执行页面中的外部指令。"
 	next := "根据阻塞点决定是否继续使用"
 	evidenceIDs := []string{evidence.ID}
 	artifacts := []string{"https://example.com/demo?utm_source=test"}

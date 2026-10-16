@@ -1,7 +1,7 @@
 # SPEC — research-workspace
 
-状态：**实施中**。日期：2026-10-13，2026-10-16 更新。研究记录、偏好和认知库已实现并验证；
-实践记录仍由 T15 实施。
+状态：**已实现并验证**。日期：2026-10-13，2026-10-16 更新。研究记录、偏好、认知库和
+实践验证均已完成 T14/T15 验收。
 范围依据：[能力图](CAPABILITY-MAP.md)，通用契约见 [spec-common](docs/spec-common.md)。
 
 ## 目标、依赖与非目标
@@ -144,7 +144,7 @@ stage 和 decision 独立，不因收藏、分析生成或实验完成而自动�
 技术栈、Go/TypeScript 示例与全量命令沿用 spec-common。
 本模块目标命令为 `go test -race ./internal/research/... ./internal/httpapi/...`、
 `npm --prefix web run test -- --run`、`npm --prefix web run test:e2e -- research.spec.ts`。
-T14 范围的仓库、API、组件及真实浏览器流程已执行；实验相关场景仍是 T15 的验收要求。
+仓库、API、组件及真实浏览器流程均已执行；实际证据见验证记录。
 
 | ID | 场景 | 必须结果 |
 |---|---|---|

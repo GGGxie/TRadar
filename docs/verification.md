@@ -36,6 +36,8 @@
 | 个人研究数据与 API | 单项目唯一记录、默认值、Unicode NFC 标签归一化、拉丁大小写去重、字段边界、过滤搜索、幂等创建、ETag/If-Match 冲突、重启持久化和个人正文不受项目变化影响，均由 SQLite 仓库及 HTTP 测试覆盖 |
 | 研究偏好 | 默认关注方向与 3/2/1 建议、0–100 边界、版本冲突和持久化均由仓库/API 测试覆盖；建议只提示节奏，不限制保存 |
 | 个人研究界面 | 项目详情创建/编辑、收藏/标签/阶段/判断/笔记/下一步、认知库搜索筛选、偏好设置及 360px 布局经组件和 Chromium 验证；412 会展示服务器最新版本并保留本地草稿，重试使用新 revision；axe 违规为零 |
+| 实践记录数据与 API | 计划/进行/完成/取消状态、180 分钟默认预算、实际用时与结论 null 清空、完成条件、同项目证据引用、HTTP(S) 产物链接、幂等创建、分页筛选、重启持久化和旧 revision 冲突均由 SQLite 仓库及 HTTP 测试覆盖；方法中的陌生 URL 只作文字保存 |
+| 实践验证界面 | 创建/编辑、假设/方法/时间/结果/结论、证据和产物链接、保存失败草稿、稳定重试意图、离开确认及 412 手工合并经组件和 Chromium 验证；桌面与 360px 无横向溢出，axe 违规为零 |
 
 ## 最近一次完整检查
 
@@ -50,10 +52,10 @@ npm --prefix web run test:e2e
 npm --prefix web audit --offline --json
 ```
 
-结果：Go 全部包通过 race 测试及 vet；Vitest 为 7 个文件、12 个测试通过；Vite 生产构建成功；
-Playwright Chromium 为 5 条流程通过。浏览器流程覆盖项目创建、证据新增和修订、项目编辑、刷新、
+结果：Go 全部包通过 race 测试及 vet；Vitest 为 8 个文件、14 个测试通过；Vite 生产构建成功；
+Playwright Chromium 为 6 条流程通过。浏览器流程覆盖项目创建、证据新增和修订、项目编辑、刷新、
 搜索、规则初筛、人工事实引用、版本上下文变化、个人研究保存与冲突合并、认知库筛选、
-移动端布局、来源配置和手动采集，页面错误为零，
+实践创建/完成/证据引用/冲突合并/未保存确认、移动端布局、来源配置和手动采集，页面错误为零，
 所检查页面 axe 违规为零。npm 完整依赖
 审计为 0 条已知漏洞。真实冒烟通过显式 `TRADAR_LIVE_SMOKE=1` 单独执行，不属于默认测试联网行为。
 
@@ -64,10 +66,11 @@ Playwright Chromium 为 5 条流程通过。浏览器流程覆盖项目创建、
 - [`evidence-desktop.png`](screenshots/evidence-desktop.png)
 - [`analysis-desktop.png`](screenshots/analysis-desktop.png)
 - [`library-mobile.png`](screenshots/library-mobile.png)
+- [`practice-desktop.png`](screenshots/practice-desktop.png)
 
 ## 当前限制
 
 Product Hunt 真实接口尚未使用用户账号 Token 联调，GitHub 日历史也未在真实冒烟中覆盖。
-实践记录、日报、演示模式和可选模型尚未实现。当前运行不会访问人工录入的 URL，
+日报、演示模式和可选模型尚未实现。当前运行不会访问人工录入或实践产物的 URL，
 也不会静默生成演示指标或商业结论。
 公网发布、付费服务与外部通知不在当前授权范围内。

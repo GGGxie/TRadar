@@ -176,6 +176,238 @@
   }
 }
 
+.experiment-card {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 28px;
+  margin: 28px 0;
+}
+.experiment-heading {
+  align-items: flex-start;
+  margin-bottom: 22px;
+}
+.experiment-form {
+  background: #f7f9f6;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 22px;
+  margin-bottom: 22px;
+}
+.experiment-form > label,
+.experiment-form-grid > label {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  color: var(--muted);
+  font-size: 11px;
+  margin-top: 14px;
+}
+.experiment-form input,
+.experiment-form select,
+.experiment-form textarea {
+  width: 100%;
+}
+.experiment-form-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0 14px;
+}
+.experiment-form-grid .experiment-title-field {
+  grid-column: span 2;
+}
+.experiment-evidence {
+  border: 0;
+  margin-top: 18px;
+  padding: 0;
+}
+.experiment-evidence legend {
+  color: var(--muted);
+  font-size: 11px;
+  margin-bottom: 8px;
+}
+.experiment-evidence > label {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 10px 12px;
+  margin-top: 7px;
+}
+.experiment-evidence input {
+  width: auto;
+  min-height: auto;
+  margin-top: 3px;
+}
+.experiment-evidence label span {
+  color: var(--ink);
+  font-size: 11px;
+}
+.experiment-evidence small {
+  color: var(--muted);
+  font-size: 9px;
+  margin-left: 8px;
+}
+.experiment-evidence > p {
+  color: var(--muted);
+  font-size: 11px;
+}
+.experiment-conflict {
+  background: #fffaf0;
+  border: 1px solid #d8c79d;
+  border-radius: 6px;
+  margin-top: 14px;
+  padding: 16px;
+}
+.experiment-conflict h3 {
+  color: #5a4a28;
+}
+.experiment-conflict > p {
+  color: #776746;
+  font-size: 10px;
+  margin-top: 6px;
+}
+.experiment-conflict dl {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+.experiment-conflict dl > div {
+  background: rgb(255 255 255 / 70%);
+  border-radius: 4px;
+  min-width: 0;
+  padding: 10px;
+}
+.experiment-conflict dt {
+  color: #776746;
+  font-size: 10px;
+}
+.experiment-conflict dd {
+  color: #403b30;
+  font-size: 11px;
+  line-height: 1.7;
+  margin-top: 5px;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+.experiment-empty {
+  border: 1px dashed #ccd7cb;
+  border-radius: 6px;
+  padding: 36px 18px;
+  text-align: center;
+}
+.experiment-empty p {
+  color: var(--muted);
+  font-size: 12px;
+  margin-top: 8px;
+}
+.experiment-list {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.experiment-list > article {
+  border-bottom: 1px solid var(--border);
+  padding: 22px;
+}
+.experiment-list > article:last-of-type {
+  border-bottom: 0;
+}
+.experiment-list article > header {
+  align-items: flex-start;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+}
+.experiment-list h3 {
+  font-size: 17px;
+}
+.experiment-meta {
+  color: var(--muted);
+  display: flex;
+  flex-wrap: wrap;
+  font-size: 10px;
+  gap: 10px;
+  margin-top: 12px;
+}
+.experiment-meta span {
+  background: #eef3ee;
+  border-radius: 100px;
+  padding: 4px 8px;
+}
+.experiment-copy {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-top: 15px;
+}
+.experiment-copy > div {
+  background: #f7f9f6;
+  border-radius: 5px;
+  padding: 13px;
+}
+.experiment-copy strong,
+.experiment-links strong {
+  font-size: 10px;
+}
+.experiment-copy p {
+  color: #405047;
+  font-size: 11px;
+  line-height: 1.7;
+  margin-top: 6px;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+.experiment-links {
+  align-items: baseline;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+  margin-top: 13px;
+}
+.experiment-links a,
+.experiment-links span {
+  border: 1px solid #d8e3d5;
+  border-radius: 4px;
+  color: #48644f;
+  font-size: 10px;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  padding: 5px 8px;
+}
+
+@media (max-width: 1000px) {
+  .experiment-form-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 720px) {
+  .experiment-card {
+    padding: 20px;
+  }
+  .experiment-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .experiment-form {
+    padding: 16px;
+  }
+  .experiment-form-grid,
+  .experiment-copy,
+  .experiment-conflict dl {
+    grid-template-columns: 1fr;
+  }
+  .experiment-form-grid .experiment-title-field {
+    grid-column: span 1;
+  }
+  .experiment-list article > header {
+    flex-direction: column;
+  }
+}
+
 .research-preferences {
   background: #fff;
   border: 1px solid var(--border);

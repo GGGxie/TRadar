@@ -277,6 +277,32 @@ export interface ResearchPreferences {
   weeklyDeepTarget: number;
   monthlyPracticeTarget: number;
 }
+export type ExperimentStatus =
+  | "PLANNED"
+  | "RUNNING"
+  | "COMPLETED"
+  | "CANCELLED";
+export type ExperimentOutcome = "SUPPORTED" | "REFUTED" | "INCONCLUSIVE";
+export interface ExperimentFields {
+  title: string;
+  hypothesis: string;
+  method: string;
+  status: ExperimentStatus;
+  timeBudgetMinutes: number;
+  actualMinutes: number | null;
+  result: string;
+  outcome: ExperimentOutcome | null;
+  evidenceIds: string[];
+  artifactUrls: string[];
+  nextAction: string;
+}
+export interface Experiment extends ExperimentFields {
+  id: string;
+  projectId: string;
+  revision: number;
+  createdAt: string;
+  updatedAt: string;
+}
 export class ApiError extends Error {
   constructor(
     message: string,
@@ -461,6 +487,50 @@ export function updateResearchPreferences(
     },
     body: JSON.stringify(patch),
   });
+}
+export function listExperiments(
+  projectId: string,
+  page = 1,
+  signal?: AbortSignal,
+) {
+  return request<Page<Experiment>>(
+    `/projects/${encodeURIComponent(projectId)}/experiments?page=${page}&pageSize=20`,
+    { signal },
+  );
+}
+export function getExperiment(id: string) {
+  return request<Resource<Experiment>>(
+    `/experiments/${encodeURIComponent(id)}`,
+  );
+}
+export function saveExperiment(
+  projectId: string,
+  fields: ExperimentFields,
+  key: string,
+  current?: Experiment,
+) {
+  return request<Resource<Experiment>>(
+    current
+      ? `/experiments/${encodeURIComponent(current.id)}`
+      : `/projects/${encodeURIComponent(projectId)}/experiments`,
+    current
+      ? {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            "If-Match": `"${current.revision}"`,
+          },
+          body: JSON.stringify(fields),
+        }
+      : {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Idempotency-Key": key,
+          },
+          body: JSON.stringify(fields),
+        },
+  );
 }
 export function listSources(signal?: AbortSignal) {
   return request<Page<SourceView>>("/sources?page=1&pageSize=20", { signal });
