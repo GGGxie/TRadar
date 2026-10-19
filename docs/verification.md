@@ -36,6 +36,9 @@
 | 可选模型运行时 | 默认关闭；完整显式配置才启用。接受任务时只冻结明确选择的公开证据、项目版本和趋势，在 SQLite 事务内按 provider/model/UTC 日期预留预算；已知用量结算，未知用量及中断保留预留。超时、非法 JSON、越界引用、JUDGMENT、非法用量和重启中断均不发布半成品版本，也不降级为规则成功 |
 | OpenAI 提供者边界 | 固定 HTTPS Responses 端点，`store=false`、空 tools、`tool_choice=none`、严格 JSON schema、1 MiB 响应上限及禁重定向；按 REST `output[].content[]` 读取文本并拒绝 refusal，API key 不进入响应或日志。请求形状、用量、REST 响应、refusal 和超限均由本地假服务验证，未消耗真实额度 |
 | 模型接口与界面 | HTTP 创建为持久化后的异步 202，稳定 Location/ETag 与幂等重放只调用一次 provider；能力接口不返回秘密。启用态组件验证私密证据不可选择、只提交公开 ID、轮询完成和 MODEL 版本显示；默认关闭态及新增第三个操作按钮的 360px 布局经 Chromium 验证 |
+| 服务访问边界 | 默认仅监听回环地址；非回环监听必须配置至少 32 字符访问令牌。缺失/错误 Bearer 被拒绝，精确令牌可访问；无 Origin 且 `Sec-Fetch-Site: cross-site` 的写请求被拒绝。规则经表驱动测试及条件变异验证 |
+| 集成安全审查 | HTTP、固定外部端点、SQLite、模型输入输出、环境秘密五类信任边界已审查；请求体/响应体上限、同源、Host、SSRF、重定向、超时、参数化 SQL、安全响应头、通用 500 和秘密忽略规则均有代码或测试证据。未发现 raw HTML、eval 或 shell 执行路径 |
+| 依赖完整性与漏洞 | Go 模块校验和通过；Go 1.26.9 生产二进制经官方 govulncheck 数据库扫描为 0；npm 锁文件签名/attestation 验证通过且离线审计为 0。可用更新单独记录，不与漏洞修复混合升级 |
 | 个人研究数据与 API | 单项目唯一记录、默认值、Unicode NFC 标签归一化、拉丁大小写去重、字段边界、过滤搜索、幂等创建、ETag/If-Match 冲突、重启持久化和个人正文不受项目变化影响，均由 SQLite 仓库及 HTTP 测试覆盖 |
 | 研究偏好 | 默认关注方向与 3/2/1 建议、0–100 边界、版本冲突和持久化均由仓库/API 测试覆盖；建议只提示节奏，不限制保存 |
 | 个人研究界面 | 项目详情创建/编辑、收藏/标签/阶段/判断/笔记/下一步、认知库搜索筛选、偏好设置及 360px 布局经组件和 Chromium 验证；412 会展示服务器最新版本并保留本地草稿，重试使用新 revision；axe 违规为零 |
@@ -51,20 +54,24 @@
 以下命令在当前分支实际成功执行：
 
 ```sh
-GOCACHE=/tmp/tradar-go-cache go test -race ./...
-GOCACHE=/tmp/tradar-go-cache go vet ./...
+GOTOOLCHAIN=go1.26.9+auto GOCACHE=/tmp/tradar-go126-cache go test -race ./...
+GOTOOLCHAIN=go1.26.9+auto GOCACHE=/tmp/tradar-go126-cache go vet ./...
+GOTOOLCHAIN=go1.26.9+auto GOCACHE=/tmp/tradar-go126-cache go build -trimpath -o /tmp/tradar-vuln-scan-go126 ./cmd/tradar
+go mod verify
+/tmp/tradar-tools/govulncheck -mode binary /tmp/tradar-vuln-scan-go126
 npm --prefix web run test -- --run
 npm --prefix web run build
 npm --prefix web run test:e2e
 npm --prefix web audit --offline --json
 ```
 
-结果：Go 全部包通过 race 测试及 vet；Vitest 为 9 个文件、16 个测试通过；Vite 生产构建成功；
+结果：Go 1.26.9 全部包通过 race 测试及 vet；生产二进制构建成功，模块校验和全部有效，
+govulncheck 二进制模式报告 `No vulnerabilities found.`；Vitest 为 9 个文件、16 个测试通过；Vite 生产构建成功；
 Playwright Chromium 为 7 条流程通过。浏览器流程覆盖项目创建、证据新增和修订、项目编辑、刷新、
 搜索、规则初筛、人工事实引用、版本上下文变化、个人研究保存与冲突合并、认知库筛选、
 实践创建/完成/证据引用/冲突合并/未保存确认、日报多版本/冻结证据/安全下载、模型默认关闭状态、移动端布局、来源配置和手动采集，页面错误为零，
-所检查页面 axe 违规为零。npm 完整依赖
-审计为 0 条已知漏洞。真实冒烟通过显式 `TRADAR_LIVE_SMOKE=1` 单独执行，不属于默认测试联网行为。
+所检查页面 axe 违规为零。npm 完整依赖审计为 0 条已知漏洞；115 个 registry 签名及 39 个
+attestation 已验证。真实冒烟通过显式 `TRADAR_LIVE_SMOKE=1` 单独执行，不属于默认测试联网行为。
 
 浏览器审阅截图：
 

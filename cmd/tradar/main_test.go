@@ -2,6 +2,29 @@ package main
 
 import "testing"
 
+func TestValidateServerAccessRequiresLongTokenOffLoopback(t *testing.T) {
+	tests := []struct {
+		name, address, token string
+		wantError            bool
+	}{
+		{"IPv4 loopback", "127.0.0.1:8080", "", false},
+		{"IPv6 loopback", "[::1]:8080", "", false},
+		{"localhost", "localhost:8080", "", false},
+		{"public missing token", "0.0.0.0:8080", "", true},
+		{"public short token", "0.0.0.0:8080", "short", true},
+		{"public long token", "0.0.0.0:8080", "0123456789abcdef0123456789abcdef", false},
+		{"invalid address", "localhost", "", true},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			err := validateServerAccess(test.address, test.token)
+			if (err != nil) != test.wantError {
+				t.Fatalf("err=%v wantError=%t", err, test.wantError)
+			}
+		})
+	}
+}
+
 func clearModelEnvironment(t *testing.T) {
 	t.Helper()
 	for _, key := range []string{

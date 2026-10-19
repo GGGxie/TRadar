@@ -47,7 +47,7 @@
   验证：DB-07/09、浏览器下载；文件：scheduler、markdown、API、页面、tests。
 - [x] T18 可选模型：受限 JSON 输出、引用/预算/用量、超时中断，不自动工具调用。
   验证：AN-05/07、假提供者；文件：provider、budget、analysis runner、tests。
-- [ ] T19 集成与安全：全套测试、竞争检测、输入/同源/持久化/失效依赖审查。
+- [x] T19 集成与安全：全套测试、竞争检测、输入/同源/持久化/失效依赖审查。
   验证：Go race/vet、前端类型/测试/构建、浏览器完整闭环、漏洞检查。
 - [ ] T20 交付文档与可运行产物：启动/配置、备份恢复、真实/演示区分、限制说明。
   验证：按 README 从构建到运行；文件：README、.env.example、Makefile、docs/verification.md。

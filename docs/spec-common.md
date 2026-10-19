@@ -14,9 +14,9 @@ HTTP JSON 请求体上限 1 MiB，超过返回 413；单 URL 至多 4096 字符�
 
 ## 技术栈与版本策略
 
-- 后端：Go 1.25 语言基线，标准库 `net/http`、`database/sql`、`log/slog`；
-  本机已验证工具链为 1.25.6，不在规格阶段更改工具链。
-- 数据库：SQLite，使用无 CGO 的 `modernc.org/sqlite` v1.53.0；该版本支持项目的 Go 1.25 基线，
+- 后端：Go 1.26.9 安全基线，标准库 `net/http`、`database/sql`、`log/slog`；
+  规格阶段观测到本机工具链为 1.25.6，T19 漏洞检查后由 `go.mod` 固定并通过 Go 自动工具链验证。
+- 数据库：SQLite，使用无 CGO 的 `modernc.org/sqlite` v1.53.0；
   确切依赖图锁定在 `go.mod` / `go.sum`。
 - 前端：React 19.3.0 + TypeScript 5.9.3 + Vite 8.3.4；使用 Node 22.23.1，
   npm 依赖锁定在 `package-lock.json`，不使用浮动 CDN 导入。
@@ -24,7 +24,7 @@ HTTP JSON 请求体上限 1 MiB，超过返回 413；单 URL 至多 4096 字符�
   浏览器验证能力若不可用，明确列出未验证项，不以编译代替浏览器验证。
 
 版本锁定是实现阶段的工程任务，不是用户需要先解决的产品问题。
-选择依据：[Go 1.25](https://go.dev/doc/go1.25)、
+选择依据：[Go 1.26](https://go.dev/doc/go1.26)、
 [SQLite 驱动文档](https://pkg.go.dev/modernc.org/sqlite)、
 [React 版本](https://react.dev/versions)、[Vite 环境要求](https://vite.dev/guide/)。
 

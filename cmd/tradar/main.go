@@ -29,6 +29,19 @@ func env(key, fallback string) string {
 	return fallback
 }
 
+func validateServerAccess(addr, token string) error {
+	host, port, err := net.SplitHostPort(addr)
+	if err != nil || port == "" {
+		return fmt.Errorf("TRADAR_ADDR must be host:port")
+	}
+	ip := net.ParseIP(host)
+	local := strings.EqualFold(host, "localhost") || (ip != nil && ip.IsLoopback())
+	if !local && len(token) < 32 {
+		return fmt.Errorf("non-loopback binding requires TRADAR_ACCESS_TOKEN of at least 32 characters; prefer an SSH tunnel")
+	}
+	return nil
+}
+
 func modelRuntime(db *sql.DB) (*analysis.ModelRuntime, error) {
 	providerName := strings.ToLower(strings.TrimSpace(os.Getenv("TRADAR_MODEL_PROVIDER")))
 	if providerName == "" {
@@ -67,15 +80,9 @@ func modelRuntime(db *sql.DB) (*analysis.ModelRuntime, error) {
 }
 func run() error {
 	addr := env("TRADAR_ADDR", "127.0.0.1:8080")
-	host, port, err := net.SplitHostPort(addr)
-	if err != nil || port == "" {
-		return fmt.Errorf("TRADAR_ADDR must be host:port")
-	}
-	ip := net.ParseIP(host)
 	token := os.Getenv("TRADAR_ACCESS_TOKEN")
-	local := strings.EqualFold(host, "localhost") || (ip != nil && ip.IsLoopback())
-	if !local && len(token) < 32 {
-		return fmt.Errorf("non-loopback binding requires TRADAR_ACCESS_TOKEN of at least 32 characters; prefer an SSH tunnel")
+	if err := validateServerAccess(addr, token); err != nil {
+		return err
 	}
 	db, err := storage.Open(env("TRADAR_DB_PATH", "data/radar.db"))
 	if err != nil {

@@ -139,6 +139,41 @@ func TestHTTPBoundaries(t *testing.T) {
 	}
 }
 
+func TestGuardRequiresAccessTokenAndRejectsCrossSiteWithoutOrigin(t *testing.T) {
+	_, db := testServerWithDB(t)
+	const token = "0123456789abcdef0123456789abcdef"
+	protected := New(db, Config{AccessToken: token})
+
+	for name, tc := range map[string]struct {
+		authorization string
+		want          int
+	}{
+		"missing": {"", http.StatusUnauthorized},
+		"wrong":   {"Bearer wrong", http.StatusUnauthorized},
+		"exact":   {"Bearer " + token, http.StatusOK},
+	} {
+		t.Run(name, func(t *testing.T) {
+			request := httptest.NewRequest(http.MethodGet, "http://localhost/healthz", nil)
+			request.Header.Set("Authorization", tc.authorization)
+			response := httptest.NewRecorder()
+			protected.ServeHTTP(response, request)
+			if response.Code != tc.want {
+				t.Fatalf("status=%d body=%s", response.Code, response.Body)
+			}
+		})
+	}
+
+	crossSite := httptest.NewRequest(http.MethodPost, "http://localhost/api/v1/projects", strings.NewReader(`{"name":"cross-site","canonicalUrl":"https://example.com"}`))
+	crossSite.Header.Set("Content-Type", "application/json")
+	crossSite.Header.Set("Idempotency-Key", "cross-site")
+	crossSite.Header.Set("Sec-Fetch-Site", "cross-site")
+	response := httptest.NewRecorder()
+	New(db, Config{}).ServeHTTP(response, crossSite)
+	if response.Code != http.StatusForbidden {
+		t.Fatalf("cross-site status=%d body=%s", response.Code, response.Body)
+	}
+}
+
 func TestCreateReturnsRevisionAndLimitsPayload(t *testing.T) {
 	h := testServer(t)
 	created := call(h, "POST", "/api/v1/projects", `{"name":"v","canonicalUrl":"https://version.test"}`, "version-intent", "")
