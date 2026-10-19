@@ -23,7 +23,8 @@
 | 任务 | 记录 | 状态 |
 |---|---|---|
 | T16 日报选择与版本 | [`2026-10-19-t16-daily-brief-core.md`](2026-10-19-t16-daily-brief-core.md) | 已完成，补记 |
-| T17 日报交付 | [`2026-10-19-t17-daily-brief-delivery.md`](2026-10-19-t17-daily-brief-delivery.md) | 进行中 |
+| T17 日报交付 | [`2026-10-19-t17-daily-brief-delivery.md`](2026-10-19-t17-daily-brief-delivery.md) | 已完成 |
+| T18 可选模型 | [`2026-10-19-t18-optional-model.md`](2026-10-19-t18-optional-model.md) | 已完成 |
 
 ## 后续记录模板
 

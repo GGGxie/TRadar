@@ -45,7 +45,7 @@
   验证：DB-01..06/08/10；文件：brief models、selection、store、tests。
 - [x] T17 日报调度/导出/界面：冻结 Markdown、安全文本、时区边界、历史阅读。
   验证：DB-07/09、浏览器下载；文件：scheduler、markdown、API、页面、tests。
-- [ ] T18 可选模型：受限 JSON 输出、引用/预算/用量、超时中断，不自动工具调用。
+- [x] T18 可选模型：受限 JSON 输出、引用/预算/用量、超时中断，不自动工具调用。
   验证：AN-05/07、假提供者；文件：provider、budget、analysis runner、tests。
 - [ ] T19 集成与安全：全套测试、竞争检测、输入/同源/持久化/失效依赖审查。
   验证：Go race/vet、前端类型/测试/构建、浏览器完整闭环、漏洞检查。
