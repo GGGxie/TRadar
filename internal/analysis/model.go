@@ -1,11 +1,15 @@
 package analysis
 
 import (
+	"context"
+	"time"
+
 	"tradar/internal/catalog"
 	"tradar/internal/trends"
 )
 
 const RulesVersion = "rules-v1"
+const ModelPromptVersion = "model-analysis-v1"
 
 type Claim struct {
 	Kind        string   `json:"kind"`
@@ -84,9 +88,53 @@ type Run struct {
 	CutoffAt        string  `json:"cutoffAt"`
 	AnalysisID      *string `json:"analysisId"`
 	ErrorCode       *string `json:"errorCode"`
-	Usage           any     `json:"usage"`
+	Usage           *Usage  `json:"usage"`
 	CreatedAt       string  `json:"createdAt"`
 	FinishedAt      *string `json:"finishedAt"`
+}
+
+type Usage struct {
+	InputTokens  *int `json:"inputTokens"`
+	OutputTokens *int `json:"outputTokens"`
+}
+
+type ModelConfig struct {
+	Provider         string
+	Model            string
+	PromptVersion    string
+	MaxOutputTokens  int
+	DailyTokenBudget int
+	Timeout          time.Duration
+}
+
+func (config ModelConfig) Enabled() bool {
+	return config.Provider != "" && config.Model != "" && config.MaxOutputTokens > 0 &&
+		config.DailyTokenBudget > 0 && config.Timeout > 0
+}
+
+type ModelRequest struct {
+	Model           string
+	Instructions    string
+	Input           string
+	Schema          map[string]any
+	MaxOutputTokens int
+}
+
+type ModelResponse struct {
+	Output string
+	Usage  *Usage
+}
+
+type ModelProvider interface {
+	Generate(context.Context, ModelRequest) (ModelResponse, error)
+}
+
+type FrozenModelInput struct {
+	Level           string             `json:"level"`
+	ProjectRevision int                `json:"projectRevision"`
+	CutoffAt        string             `json:"cutoffAt"`
+	Evidence        []catalog.Evidence `json:"evidence"`
+	Trend           trends.TrendResult `json:"trend"`
 }
 
 type Capabilities struct {
@@ -98,6 +146,16 @@ type Capabilities struct {
 	DailyTokenBudget *int    `json:"dailyTokenBudget"`
 }
 
-func CurrentCapabilities() Capabilities {
-	return Capabilities{RulesEnabled: true, ModelEnabled: false}
+func CurrentCapabilities(configs ...ModelConfig) Capabilities {
+	result := Capabilities{RulesEnabled: true, ModelEnabled: false}
+	if len(configs) == 0 || validateModelConfig(configs[0]) != nil {
+		return result
+	}
+	config := configs[0]
+	result.ModelEnabled = true
+	result.Provider = &config.Provider
+	result.Model = &config.Model
+	result.MaxOutputTokens = &config.MaxOutputTokens
+	result.DailyTokenBudget = &config.DailyTokenBudget
+	return result
 }

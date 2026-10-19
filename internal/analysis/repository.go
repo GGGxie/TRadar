@@ -249,7 +249,9 @@ func scanRun(row interface{ Scan(...any) error }) (Run, error) {
 	}
 	run.AnalysisID, run.ErrorCode, run.FinishedAt = nullString(analysisID), nullString(errorCode), nullString(finished)
 	if usageJSON.Valid {
-		_ = json.Unmarshal([]byte(usageJSON.String), &run.Usage)
+		if err := json.Unmarshal([]byte(usageJSON.String), &run.Usage); err != nil {
+			return Run{}, err
+		}
 	}
 	return run, nil
 }
