@@ -76,6 +76,7 @@ func TestAcceptedBriefInputStaysFrozenAcrossLaterEvidenceAndResearchChanges(t *t
 	decision, next := "OBSERVE", "核对付费留存"
 	entry := createBriefResearch(t, db, project.ID, research.EntryPatch{Decision: &decision, NextAction: &next}, now.Add(-20*time.Minute))
 	upsertBriefSource(t, db, project.ID, "GITHUB", "fresh-source", now.Add(-time.Hour))
+	upsertBriefSource(t, db, project.ID, "HACKER_NEWS", "stale-source", now.Add(-25*time.Hour))
 	run := acceptRun(t, db, CreateInput{Date: "2026-10-16", TimeZone: "Asia/Shanghai"}, now)
 	newDecision := "USE"
 	updatedNote := "不能进入已冻结日报"
@@ -101,7 +102,9 @@ func TestAcceptedBriefInputStaysFrozenAcrossLaterEvidenceAndResearchChanges(t *t
 	if item.NextAction == nil || *item.NextAction != next || containsText(item.FactSummary, updatedNote) || containsID(item.EvidenceIDs, late.ID) {
 		t.Fatalf("private or late data leaked: %+v", item)
 	}
-	if len(first.Coverage) != 3 || first.Coverage[0].Source != "GITHUB" || first.Coverage[0].State != "AVAILABLE" || first.Coverage[1].State != "NO_DATA" {
+	if len(first.Coverage) != 3 || first.Coverage[0].Source != "GITHUB" || first.Coverage[0].State != "AVAILABLE" ||
+		first.Coverage[1].Source != "HACKER_NEWS" || first.Coverage[1].State != "STALE" ||
+		first.Coverage[2].Source != "PRODUCT_HUNT" || first.Coverage[2].State != "NO_DATA" {
 		t.Fatalf("coverage=%+v", first.Coverage)
 	}
 	secondRun := acceptRun(t, db, CreateInput{Date: "2026-10-16", TimeZone: "Asia/Shanghai"}, now.Add(time.Hour))

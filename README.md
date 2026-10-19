@@ -4,10 +4,13 @@ TRadar 是个人技术趋势与商业机会雷达。它把项目发现、来源�
 个人研究、实践验证和每日简报保存在一个可追溯的本地工作区。首版是单用户 Go + SQLite 服务，
 React 页面由同一进程提供。
 
+**当前状态：首版已完成本地交付检查；六个模块的 58 项验收证据均已建立映射。**
+
 - [能力图与首版范围](CAPABILITY-MAP.md)
 - [详细规格总览](docs/spec-overview.md)
 - [实施任务与状态](tasks/todo.md)
 - [实际验证证据](docs/verification.md)
+- [六模块验收矩阵](docs/acceptance-matrix.md)
 - [agent-skills 工程过程记录](docs/process/README.md)
 
 工程方法来自 [addyosmani/agent-skills](https://github.com/addyosmani/agent-skills)。项目固定了上游
