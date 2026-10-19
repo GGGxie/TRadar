@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"tradar/internal/analysis"
 	"tradar/internal/brief"
 	"tradar/internal/fault"
 	"tradar/internal/ingestion"
@@ -30,6 +31,7 @@ type Config struct {
 	HasGitHubCredentials, HasProductHuntCredentials bool
 	QueueIngestionRun                               func(ingestion.IngestionRun) error
 	QueueBriefRun                                   func(brief.Run) error
+	AnalysisModel                                   *analysis.ModelRuntime
 }
 type Server struct {
 	db              *sql.DB
@@ -216,7 +218,7 @@ func writeError(w http.ResponseWriter, r *http.Request, err error) {
 		if app.RetryAt != nil {
 			w.Header().Set("Retry-After", app.RetryAt.UTC().Format(http.TimeFormat))
 		}
-		statuses := map[string]int{"VALIDATION_ERROR": 422, "NOT_FOUND": 404, "VERSION_CONFLICT": 412, "PROJECT_CONTEXT_CHANGED": 412, "PRECONDITION_REQUIRED": 428, "IDEMPOTENCY_MISMATCH": 422, "IDEMPOTENCY_IN_PROGRESS": 409, "RESEARCH_ALREADY_EXISTS": 409, "BRIEF_ALREADY_RUNNING": 409, "BRIEF_RUN_FINISHED": 409, "SOURCE_BUSY": 409, "SOURCE_DISABLED": 422, "SOURCE_CREDENTIALS_REQUIRED": 422, "SOURCE_RATE_LIMITED": 429, "MODEL_DISABLED": 503, "BAD_REQUEST": 400, "FORBIDDEN": 403, "UNAUTHORIZED": 401, "UNSUPPORTED_MEDIA_TYPE": 415, "PAYLOAD_TOO_LARGE": 413, "METHOD_NOT_ALLOWED": 405, "CONFLICT": 409}
+		statuses := map[string]int{"VALIDATION_ERROR": 422, "NOT_FOUND": 404, "VERSION_CONFLICT": 412, "PROJECT_CONTEXT_CHANGED": 412, "PRECONDITION_REQUIRED": 428, "IDEMPOTENCY_MISMATCH": 422, "IDEMPOTENCY_IN_PROGRESS": 409, "RESEARCH_ALREADY_EXISTS": 409, "BRIEF_ALREADY_RUNNING": 409, "BRIEF_RUN_FINISHED": 409, "ANALYSIS_RUN_FINISHED": 409, "SOURCE_BUSY": 409, "SOURCE_DISABLED": 422, "SOURCE_CREDENTIALS_REQUIRED": 422, "SOURCE_RATE_LIMITED": 429, "MODEL_BUDGET_EXCEEDED": 429, "MODEL_DISABLED": 503, "MODEL_INPUT_TOO_LARGE": 422, "BAD_REQUEST": 400, "FORBIDDEN": 403, "UNAUTHORIZED": 401, "UNSUPPORTED_MEDIA_TYPE": 415, "PAYLOAD_TOO_LARGE": 413, "METHOD_NOT_ALLOWED": 405, "CONFLICT": 409}
 		if n, ok := statuses[code]; ok {
 			status = n
 		}

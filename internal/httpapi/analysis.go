@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -76,8 +77,19 @@ func (s *Server) projectAnalysisRuns(w http.ResponseWriter, r *http.Request) {
 		writeError(w, r, err)
 		return
 	}
-	s.mutateResponse(w, r, "analysis-runs:create:"+projectID, input, func(tx *sql.Tx) (int, any, error) {
-		run, err := analysis.CreateRulesRun(r.Context(), tx, projectID, input, s.now())
+	var acceptedRun analysis.Run
+	created := s.mutateResponse(w, r, "analysis-runs:create:"+projectID, input, func(tx *sql.Tx) (int, any, error) {
+		var run analysis.Run
+		var err error
+		if input.Mode == "MODEL" {
+			if s.config.AnalysisModel == nil {
+				return http.StatusAccepted, run, fault.New("MODEL_DISABLED", "模型分析尚未启用")
+			}
+			run, err = s.config.AnalysisModel.Accept(r.Context(), tx, projectID, input, s.now())
+		} else {
+			run, err = analysis.CreateRulesRun(r.Context(), tx, projectID, input, s.now())
+		}
+		acceptedRun = run
 		return http.StatusAccepted, run, err
 	}, func(header http.Header, body []byte) {
 		var stored struct {
@@ -89,6 +101,11 @@ func (s *Server) projectAnalysisRuns(w http.ResponseWriter, r *http.Request) {
 			header.Set("Location", "/api/v1/analysis-runs/"+stored.Data.ID)
 		}
 	})
+	if created && acceptedRun.Mode == "MODEL" {
+		if err := s.config.AnalysisModel.Enqueue(acceptedRun); err != nil {
+			slog.Error("queue model analysis failed", "runId", acceptedRun.ID, "error", err)
+		}
+	}
 }
 
 func (s *Server) analysisRun(w http.ResponseWriter, r *http.Request) {
@@ -110,5 +127,9 @@ func (s *Server) analysisCapabilities(w http.ResponseWriter, r *http.Request) {
 		methodError(w, r)
 		return
 	}
-	writeJSON(w, http.StatusOK, response{Data: analysis.CurrentCapabilities()})
+	capabilities := analysis.CurrentCapabilities()
+	if s.config.AnalysisModel != nil {
+		capabilities = s.config.AnalysisModel.Capabilities()
+	}
+	writeJSON(w, http.StatusOK, response{Data: capabilities})
 }

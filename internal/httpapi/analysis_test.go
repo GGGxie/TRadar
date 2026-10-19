@@ -1,12 +1,30 @@
 package httpapi
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
+	"sync"
 	"testing"
+	"time"
+
+	"tradar/internal/analysis"
 )
+
+type fakeHTTPModelProvider struct {
+	mu       sync.Mutex
+	calls    int
+	response analysis.ModelResponse
+}
+
+func (provider *fakeHTTPModelProvider) Generate(_ context.Context, _ analysis.ModelRequest) (analysis.ModelResponse, error) {
+	provider.mu.Lock()
+	defer provider.mu.Unlock()
+	provider.calls++
+	return provider.response, nil
+}
 
 func TestAnalysisHTTPManualRulesIdempotencyAndCapabilities(t *testing.T) {
 	handler := testServer(t)
@@ -87,5 +105,84 @@ func TestAnalysisHTTPRejectsInvalidFactsAndStaleProject(t *testing.T) {
 	response = call(handler, http.MethodPost, "/api/v1/projects/"+project.Data.ID+"/analyses", stale, "stale-analysis", "")
 	if response.Code != http.StatusPreconditionFailed || !strings.Contains(response.Body.String(), "PROJECT_CONTEXT_CHANGED") {
 		t.Fatalf("stale: %d %s", response.Code, response.Body)
+	}
+}
+
+func TestAnalysisHTTPModelRunIsAsyncIdempotentAndPublishesValidatedVersion(t *testing.T) {
+	_, db := testServerWithDB(t)
+	provider := &fakeHTTPModelProvider{}
+	config := analysis.ModelConfig{
+		Provider: "fake", Model: "fake-http-model", PromptVersion: analysis.ModelPromptVersion,
+		MaxOutputTokens: 800, DailyTokenBudget: 100_000, Timeout: time.Second,
+	}
+	runtime := analysis.NewModelRuntime(db, provider, config)
+	runtimeContext, cancel := context.WithCancel(context.Background())
+	runtime.Start(runtimeContext)
+	t.Cleanup(func() { cancel(); runtime.Wait() })
+	handler := New(db, Config{AnalysisModel: runtime})
+
+	createdProject := call(handler, http.MethodPost, "/api/v1/projects", `{"name":"Model Target","canonicalUrl":"https://example.com/model-target"}`, "model-http-project", "")
+	var project struct {
+		Data struct {
+			ID       string `json:"id"`
+			Revision int    `json:"revision"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(createdProject.Body.Bytes(), &project); err != nil || createdProject.Code != http.StatusCreated {
+		t.Fatalf("project=%d %s err=%v", createdProject.Code, createdProject.Body, err)
+	}
+	createdEvidence := call(handler, http.MethodPost, "/api/v1/projects/"+project.Data.ID+"/evidence", `{"url":"https://example.com/public-model-evidence","title":"公开证据","excerpt":"公开页面记录了首批用户。","kind":"PUBLIC_EXCERPT","isPublic":true}`, "model-http-evidence", "")
+	var evidence struct {
+		Data struct {
+			ID string `json:"id"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(createdEvidence.Body.Bytes(), &evidence); err != nil || createdEvidence.Code != http.StatusCreated {
+		t.Fatalf("evidence=%d %s err=%v", createdEvidence.Code, createdEvidence.Body, err)
+	}
+	inputTokens, outputTokens := 40, 15
+	provider.response = analysis.ModelResponse{
+		Output: fmt.Sprintf(`{"sections":[{"key":"WHAT","claims":[{"kind":"FACT","text":"公开证据记录了首批用户。","evidenceIds":[%q]}]},{"key":"PROBLEM","claims":[{"kind":"UNKNOWN","text":"需求强度未知。","evidenceIds":[]}]},{"key":"ATTENTION","claims":[{"kind":"HYPOTHESIS","text":"可能值得继续观察。","evidenceIds":[]}]},{"key":"FIT","claims":[{"kind":"UNKNOWN","text":"适配度待人工判断。","evidenceIds":[]}]}],"openQuestions":["是否留存？"],"nextChecks":["人工核对第二来源。"]}`, evidence.Data.ID),
+		Usage:  &analysis.Usage{InputTokens: &inputTokens, OutputTokens: &outputTokens},
+	}
+	body := fmt.Sprintf(`{"level":"SCREEN","mode":"MODEL","projectRevision":%d,"evidenceIds":[%q]}`, project.Data.Revision, evidence.Data.ID)
+	accepted := call(handler, http.MethodPost, "/api/v1/projects/"+project.Data.ID+"/analysis-runs", body, "model-http-run", "")
+	if accepted.Code != http.StatusAccepted || accepted.Header().Get("Location") == "" || !strings.Contains(accepted.Body.String(), `"status":"PENDING"`) {
+		t.Fatalf("accepted=%d %s headers=%v", accepted.Code, accepted.Body, accepted.Header())
+	}
+
+	var completed struct {
+		Data analysis.Run `json:"data"`
+	}
+	for attempt := 0; attempt < 100; attempt++ {
+		read := call(handler, http.MethodGet, accepted.Header().Get("Location"), "", "", "")
+		if err := json.Unmarshal(read.Body.Bytes(), &completed); err != nil {
+			t.Fatal(err)
+		}
+		if completed.Data.Status == "SUCCEEDED" {
+			if read.Header().Get("ETag") != `"3"` {
+				t.Fatalf("etag=%s", read.Header().Get("ETag"))
+			}
+			break
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	if completed.Data.Status != "SUCCEEDED" || completed.Data.AnalysisID == nil || completed.Data.Usage == nil {
+		t.Fatalf("completed=%+v", completed.Data)
+	}
+	replayed := call(handler, http.MethodPost, "/api/v1/projects/"+project.Data.ID+"/analysis-runs", body, "model-http-run", "")
+	provider.mu.Lock()
+	calls := provider.calls
+	provider.mu.Unlock()
+	if replayed.Code != http.StatusAccepted || replayed.Body.String() != accepted.Body.String() || calls != 1 {
+		t.Fatalf("replay=%d %s calls=%d", replayed.Code, replayed.Body, calls)
+	}
+	version := call(handler, http.MethodGet, "/api/v1/analyses/"+*completed.Data.AnalysisID, "", "", "")
+	if version.Code != http.StatusOK || !strings.Contains(version.Body.String(), `"origin":"MODEL"`) || !strings.Contains(version.Body.String(), `"promptVersion":"model-analysis-v1"`) {
+		t.Fatalf("version=%d %s", version.Code, version.Body)
+	}
+	capabilities := call(handler, http.MethodGet, "/api/v1/analysis-capabilities", "", "", "")
+	if capabilities.Code != http.StatusOK || !strings.Contains(capabilities.Body.String(), `"modelEnabled":true`) || strings.Contains(capabilities.Body.String(), "test-secret") {
+		t.Fatalf("capabilities=%d %s", capabilities.Code, capabilities.Body)
 	}
 }
