@@ -43,7 +43,7 @@
 - [x] 检查点 C：发现→四问→六维→个人判断→实践记录完整且可重启回溯。
 - [x] T16 日报选择与版本：只推荐新变化、原子冻结、当日日期/时区/幂等。
   验证：DB-01..06/08/10；文件：brief models、selection、store、tests。
-- [ ] T17 日报调度/导出/界面：冻结 Markdown、安全文本、时区边界、历史阅读。
+- [x] T17 日报调度/导出/界面：冻结 Markdown、安全文本、时区边界、历史阅读。
   验证：DB-07/09、浏览器下载；文件：scheduler、markdown、API、页面、tests。
 - [ ] T18 可选模型：受限 JSON 输出、引用/预算/用量、超时中断，不自动工具调用。
   验证：AN-05/07、假提供者；文件：provider、budget、analysis runner、tests。
