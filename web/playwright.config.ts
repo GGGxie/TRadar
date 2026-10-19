@@ -12,7 +12,10 @@ export default defineConfig({
     baseURL: "http://127.0.0.1:8099",
     browserName: "chromium",
     viewport: { width: 1440, height: 1000 },
-    trace: "retain-on-failure",
+    // Full traces keep every DOM/network snapshot in memory and can terminate
+    // Chromium on the small local verification host. Tests already save the
+    // review screenshots that form part of this project's delivery evidence.
+    trace: "off",
   },
   webServer: {
     command: "../bin/tradar",

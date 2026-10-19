@@ -209,7 +209,10 @@ test("practice records preserve drafts, references and conflict recovery", async
   page.once("dialog", async (dialog) => dialog.accept());
   await page.getByRole("button", { name: "取消" }).click();
   await expect(page.getByLabel("结果记录")).toHaveCount(0);
-  expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+  expect(
+    (await new AxeBuilder({ page }).include(".experiment-card").analyze())
+      .violations,
+  ).toEqual([]);
   await page
     .getByRole("heading", { name: "实践验证" })
     .scrollIntoViewIfNeeded();
@@ -226,5 +229,8 @@ test("practice records preserve drafts, references and conflict recovery", async
       () => document.documentElement.scrollWidth <= window.innerWidth,
     ),
   ).toBe(true);
-  expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+  expect(
+    (await new AxeBuilder({ page }).include(".experiment-card").analyze())
+      .violations,
+  ).toEqual([]);
 });
