@@ -39,6 +39,8 @@
 | 服务访问边界 | 默认仅监听回环地址；非回环监听必须配置至少 32 字符访问令牌。缺失/错误 Bearer 被拒绝，精确令牌可访问；无 Origin 且 `Sec-Fetch-Site: cross-site` 的写请求被拒绝。规则经表驱动测试及条件变异验证 |
 | 集成安全审查 | HTTP、固定外部端点、SQLite、模型输入输出、环境秘密五类信任边界已审查；请求体/响应体上限、同源、Host、SSRF、重定向、超时、参数化 SQL、安全响应头、通用 500 和秘密忽略规则均有代码或测试证据。未发现 raw HTML、eval 或 shell 执行路径 |
 | 依赖完整性与漏洞 | Go 模块校验和通过；Go 1.26.9 生产二进制经官方 govulncheck 数据库扫描为 0；npm 锁文件签名/attestation 验证通过且离线审计为 0。可用更新单独记录，不与漏洞修复混合升级 |
+| 可运行交付 | 不含 Git/依赖/构建物/数据的隔离副本按 README 完成锁定依赖安装和生产构建；空库启动后 health 为 200、页面为 HTML、schema 10 且 quick check 为 ok；SIGINT 正常退出 |
+| 备份与恢复 | WAL 数据库通过 SQLite online backup 得到一致快照；备份/恢复 quick check 为 ok 且权限 0600。恢复缺显式确认会拒绝，覆盖已有目标前保留带 UTC 时间戳的副本 |
 | 个人研究数据与 API | 单项目唯一记录、默认值、Unicode NFC 标签归一化、拉丁大小写去重、字段边界、过滤搜索、幂等创建、ETag/If-Match 冲突、重启持久化和个人正文不受项目变化影响，均由 SQLite 仓库及 HTTP 测试覆盖 |
 | 研究偏好 | 默认关注方向与 3/2/1 建议、0–100 边界、版本冲突和持久化均由仓库/API 测试覆盖；建议只提示节奏，不限制保存 |
 | 个人研究界面 | 项目详情创建/编辑、收藏/标签/阶段/判断/笔记/下一步、认知库搜索筛选、偏好设置及 360px 布局经组件和 Chromium 验证；412 会展示服务器最新版本并保留本地草稿，重试使用新 revision；axe 违规为零 |
@@ -65,6 +67,16 @@ npm --prefix web run test:e2e
 npm --prefix web audit --offline --json
 ```
 
+交付入口也作为整体成功执行：
+
+```sh
+make setup
+make build
+make verify
+make backup TRADAR_DB_PATH=<临时数据库> BACKUP_FILE=<临时备份>
+make restore TRADAR_DB_PATH=<临时恢复库> RESTORE_FROM=<临时备份> CONFIRM_RESTORE=yes
+```
+
 结果：Go 1.26.9 全部包通过 race 测试及 vet；生产二进制构建成功，模块校验和全部有效，
 govulncheck 二进制模式报告 `No vulnerabilities found.`；Vitest 为 9 个文件、16 个测试通过；Vite 生产构建成功；
 Playwright Chromium 为 7 条流程通过。浏览器流程覆盖项目创建、证据新增和修订、项目编辑、刷新、
@@ -86,7 +98,7 @@ attestation 已验证。真实冒烟通过显式 `TRADAR_LIVE_SMOKE=1` 单独执
 ## 当前限制
 
 Product Hunt 真实接口尚未使用用户账号 Token 联调，GitHub 日历史也未在真实冒烟中覆盖。
-演示模式尚未实现；可选模型已实现但默认关闭，尚未执行真实 OpenAI 付费调用。
+首版不提供演示模式；可选模型已实现但默认关闭，尚未执行真实 OpenAI 付费调用。
 当前运行不会访问人工录入或实践产物的 URL，
 也不会静默生成演示指标或商业结论。
 公网发布、付费服务与外部通知不在当前授权范围内。
