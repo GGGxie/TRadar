@@ -13,6 +13,7 @@ import (
 	"syscall"
 	"time"
 
+	"tradar/internal/brief"
 	"tradar/internal/httpapi"
 	"tradar/internal/ingestion"
 	"tradar/internal/storage"
@@ -46,6 +47,11 @@ func run() error {
 	} else if interrupted > 0 {
 		slog.Warn("interrupted unfinished ingestion tasks", "count", interrupted)
 	}
+	if interrupted, recoverErr := brief.RecoverInterrupted(context.Background(), db, time.Now()); recoverErr != nil {
+		return fmt.Errorf("recover brief tasks: %w", recoverErr)
+	} else if interrupted > 0 {
+		slog.Warn("interrupted unfinished brief tasks", "count", interrupted)
+	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	runtimeContext, stopRuntime := context.WithCancel(ctx)
@@ -55,9 +61,12 @@ func run() error {
 		GitHubToken: githubToken, ProductHuntToken: productHuntToken,
 	})
 	ingestionRuntime.Start(runtimeContext)
+	briefRuntime := brief.NewRuntime(db, brief.RuntimeConfig{})
+	briefRuntime.Start(runtimeContext)
 	defer func() {
 		stopRuntime()
 		ingestionRuntime.Wait()
+		briefRuntime.Wait()
 	}()
 	cfg := httpapi.Config{
 		WebDir: env("TRADAR_WEB_DIR", "web/dist"), AccessToken: token,
@@ -65,6 +74,7 @@ func run() error {
 		HasGitHubCredentials:      githubToken != "",
 		HasProductHuntCredentials: productHuntToken != "",
 		QueueIngestionRun:         ingestionRuntime.Enqueue,
+		QueueBriefRun:             briefRuntime.Enqueue,
 	}
 	server := &http.Server{Addr: addr, Handler: httpapi.New(db, cfg), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 15 * time.Second, WriteTimeout: 30 * time.Second, IdleTimeout: 60 * time.Second, MaxHeaderBytes: 16 << 10}
 	result := make(chan error, 1)

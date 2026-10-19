@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"tradar/internal/brief"
 	"tradar/internal/fault"
 	"tradar/internal/ingestion"
 )
@@ -28,6 +29,7 @@ type Config struct {
 	WebDir, AccessToken, AllowedHost, DevOrigin     string
 	HasGitHubCredentials, HasProductHuntCredentials bool
 	QueueIngestionRun                               func(ingestion.IngestionRun) error
+	QueueBriefRun                                   func(brief.Run) error
 }
 type Server struct {
 	db              *sql.DB
@@ -74,6 +76,11 @@ func New(db *sql.DB, config Config) http.Handler {
 	mux.HandleFunc("/api/v1/ingestion-runs", s.ingestionRuns)
 	mux.HandleFunc("/api/v1/ingestion-runs/{id}", s.ingestionRun)
 	mux.HandleFunc("/api/v1/radar", s.radar)
+	mux.HandleFunc("/api/v1/briefs", s.briefs)
+	mux.HandleFunc("/api/v1/briefs/{id}", s.briefByID)
+	mux.HandleFunc("/api/v1/briefs/{id}/markdown", s.briefMarkdown)
+	mux.HandleFunc("/api/v1/brief-runs/{id}", s.briefRun)
+	mux.HandleFunc("/api/v1/brief-settings", s.briefSettings)
 	mux.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) { writeError(w, r, fault.Missing("接口")) })
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != "GET" {
@@ -209,7 +216,7 @@ func writeError(w http.ResponseWriter, r *http.Request, err error) {
 		if app.RetryAt != nil {
 			w.Header().Set("Retry-After", app.RetryAt.UTC().Format(http.TimeFormat))
 		}
-		statuses := map[string]int{"VALIDATION_ERROR": 422, "NOT_FOUND": 404, "VERSION_CONFLICT": 412, "PROJECT_CONTEXT_CHANGED": 412, "PRECONDITION_REQUIRED": 428, "IDEMPOTENCY_MISMATCH": 422, "IDEMPOTENCY_IN_PROGRESS": 409, "RESEARCH_ALREADY_EXISTS": 409, "SOURCE_BUSY": 409, "SOURCE_DISABLED": 422, "SOURCE_CREDENTIALS_REQUIRED": 422, "SOURCE_RATE_LIMITED": 429, "MODEL_DISABLED": 503, "BAD_REQUEST": 400, "FORBIDDEN": 403, "UNAUTHORIZED": 401, "UNSUPPORTED_MEDIA_TYPE": 415, "PAYLOAD_TOO_LARGE": 413, "METHOD_NOT_ALLOWED": 405, "CONFLICT": 409}
+		statuses := map[string]int{"VALIDATION_ERROR": 422, "NOT_FOUND": 404, "VERSION_CONFLICT": 412, "PROJECT_CONTEXT_CHANGED": 412, "PRECONDITION_REQUIRED": 428, "IDEMPOTENCY_MISMATCH": 422, "IDEMPOTENCY_IN_PROGRESS": 409, "RESEARCH_ALREADY_EXISTS": 409, "BRIEF_ALREADY_RUNNING": 409, "BRIEF_RUN_FINISHED": 409, "SOURCE_BUSY": 409, "SOURCE_DISABLED": 422, "SOURCE_CREDENTIALS_REQUIRED": 422, "SOURCE_RATE_LIMITED": 429, "MODEL_DISABLED": 503, "BAD_REQUEST": 400, "FORBIDDEN": 403, "UNAUTHORIZED": 401, "UNSUPPORTED_MEDIA_TYPE": 415, "PAYLOAD_TOO_LARGE": 413, "METHOD_NOT_ALLOWED": 405, "CONFLICT": 409}
 		if n, ok := statuses[code]; ok {
 			status = n
 		}
