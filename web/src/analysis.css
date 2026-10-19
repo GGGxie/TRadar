@@ -362,6 +362,9 @@
   .claim-editor-row label {
     width: 100%;
   }
+  .analysis-actions {
+    flex-direction: column;
+  }
   .analysis-evidence-picker,
   .analysis-text-lists,
   .analysis-section-grid,

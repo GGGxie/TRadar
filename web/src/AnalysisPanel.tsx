@@ -3,10 +3,12 @@ import {
   createAnalysis,
   evidenceKinds,
   formatDate,
+  getAnalysisRun,
   getAnalysisCapabilities,
   listAnalyses,
   request,
   runRulesAnalysis,
+  runModelAnalysis,
   type AnalysisCapabilities,
   type AnalysisClaim,
   type AnalysisContent,
@@ -100,7 +102,7 @@ export function AnalysisPanel({
   );
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
-  const [mode, setMode] = useState<"RULES" | "MANUAL" | null>(null);
+  const [mode, setMode] = useState<"RULES" | "MODEL" | "MANUAL" | null>(null);
   const [selectedEvidence, setSelectedEvidence] = useState<string[]>([]);
   const [draft, setDraft] = useState<AnalysisContent | null>(null);
   const [basedOn, setBasedOn] = useState<string | undefined>();
@@ -162,6 +164,14 @@ export function AnalysisPanel({
     newIntent();
   }
 
+  function beginModel() {
+    setMode("MODEL");
+    setDraft(null);
+    setSelectedEvidence([]);
+    setNotice("");
+    newIntent();
+  }
+
   function beginManual(base?: AnalysisVersion) {
     setMode("MANUAL");
     setDraft(base ? cloneContent(base) : emptyContent(level));
@@ -186,26 +196,45 @@ export function AnalysisPanel({
     newIntent();
   }
 
-  async function generateRules(event: FormEvent) {
+  async function generateAutomated(event: FormEvent) {
     event.preventDefault();
-    if (saving) return;
+    if (saving || (mode !== "RULES" && mode !== "MODEL")) return;
     setSaving(true);
     setActionError("");
     try {
-      const result = await runRulesAnalysis(
-        project.id,
-        {
-          level,
-          projectRevision: project.revision,
-          evidenceIds: selectedEvidence,
-        },
-        intent.current,
-      );
-      if (result.data.status !== "SUCCEEDED") {
-        throw new Error("规则分析尚未完成，请稍后重试。");
+      const input = {
+        level,
+        projectRevision: project.revision,
+        evidenceIds: selectedEvidence,
+      };
+      let run =
+        mode === "MODEL"
+          ? (await runModelAnalysis(project.id, input, intent.current)).data
+          : (await runRulesAnalysis(project.id, input, intent.current)).data;
+      if (mode === "MODEL") {
+        for (let attempt = 0; attempt < 60; attempt += 1) {
+          if (run.status === "SUCCEEDED") break;
+          if (run.status === "FAILED" || run.status === "INTERRUPTED")
+            throw new Error(
+              `模型任务未完成（${run.errorCode ?? run.status}），所选证据仍保留。`,
+            );
+          run = (await getAnalysisRun(run.id)).data;
+          if (run.status === "PENDING" || run.status === "RUNNING")
+            await new Promise((resolve) => window.setTimeout(resolve, 250));
+        }
       }
+      if (run.status !== "SUCCEEDED")
+        throw new Error(
+          mode === "MODEL"
+            ? "模型仍在生成，请稍后刷新查看。"
+            : "规则分析尚未完成，请稍后重试。",
+        );
       setMode(null);
-      setNotice("规则版本已生成，引用和当前趋势已冻结。");
+      setNotice(
+        mode === "MODEL"
+          ? "模型版本已生成，引用与用量已冻结；请人工核对所有推测。"
+          : "规则版本已生成，引用和当前趋势已冻结。",
+      );
       setReload((value) => value + 1);
     } catch (problem) {
       setActionError(
@@ -333,6 +362,18 @@ export function AnalysisPanel({
             生成规则{levelName}
           </button>
           <button
+            className="secondary"
+            disabled={!!mode || loading || !capabilities?.modelEnabled}
+            onClick={beginModel}
+            title={
+              capabilities?.modelEnabled
+                ? "只会发送本次明确选择的公开证据"
+                : "需要先在服务端配置模型、输出上限和每日预算"
+            }
+          >
+            生成模型{levelName}
+          </button>
+          <button
             className="primary"
             disabled={!!mode || loading}
             onClick={() => beginManual()}
@@ -365,12 +406,14 @@ export function AnalysisPanel({
             : "模型分析未启用"}
         </span>
       </div>
-      {mode === "RULES" && (
-        <form className="analysis-builder" onSubmit={generateRules}>
+      {(mode === "RULES" || mode === "MODEL") && (
+        <form className="analysis-builder" onSubmit={generateAutomated}>
           <div>
             <h3>选择本次要冻结的证据</h3>
             <p>
-              规则模板只整理你明确选择的内容。私密证据保留在本机，不会发送给外部服务。
+              {mode === "MODEL"
+                ? "模型只接收你明确选择的公开证据；私密证据不可选择，也不会发送。模型没有浏览或工具权限。"
+                : "规则模板只整理你明确选择的内容。私密证据保留在本机，不会发送给外部服务。"}
             </p>
           </div>
           {evidence.length ? (
@@ -381,12 +424,16 @@ export function AnalysisPanel({
                     type="checkbox"
                     checked={selectedEvidence.includes(item.id)}
                     onChange={() => toggleSelected(item.id)}
-                    disabled={saving}
+                    disabled={saving || (mode === "MODEL" && !item.isPublic)}
                   />
                   <span>
                     <strong>{item.title}</strong>
                     <small>
-                      {item.isPublic ? "公开证据" : "私密证据 · 仅本地规则使用"}
+                      {item.isPublic
+                        ? "公开证据"
+                        : mode === "MODEL"
+                          ? "私密证据 · 不会发送"
+                          : "私密证据 · 仅本地规则使用"}
                     </small>
                   </span>
                 </label>
@@ -407,7 +454,11 @@ export function AnalysisPanel({
               取消
             </button>
             <button className="primary" disabled={saving}>
-              {saving ? "正在生成…" : "生成并冻结版本"}
+              {saving
+                ? "正在生成…"
+                : mode === "MODEL"
+                  ? "调用模型并冻结版本"
+                  : "生成并冻结版本"}
             </button>
           </div>
         </form>

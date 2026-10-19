@@ -33,6 +33,14 @@ const evidence = {
   supersedesId: null,
 };
 
+const publicEvidence = {
+  ...evidence,
+  id: "e-public",
+  title: "公开产品说明",
+  excerpt: "公开页面记录了首批用户。",
+  isPublic: true,
+};
+
 function page(data: unknown[]) {
   return {
     data,
@@ -229,12 +237,172 @@ describe("AnalysisPanel", () => {
     );
     await user.click(screen.getByRole("button", { name: "保存人工版本" }));
     await screen.findByRole("alert");
-    expect(
-      screen.getByDisplayValue("创始人公开披露了收入数字。"),
-    ).toBeTruthy();
+    expect(screen.getByDisplayValue("创始人公开披露了收入数字。")).toBeTruthy();
     await user.click(screen.getByRole("button", { name: "保存人工版本" }));
     await waitFor(() => expect(postKeys).toHaveLength(2));
     expect(postKeys[0]).toBeTruthy();
     expect(postKeys[0]).toBe(postKeys[1]);
+  });
+
+  it("runs an enabled model with public evidence only and polls its frozen version", async () => {
+    const fetcher = vi.fn(async (path: string, options?: RequestInit) => {
+      if (options?.method === "POST" && path.endsWith("/analysis-runs"))
+        return new Response(
+          JSON.stringify({
+            data: {
+              id: "model-run",
+              projectId: "p1",
+              level: "SCREEN",
+              mode: "MODEL",
+              status: "PENDING",
+              revision: 1,
+              projectRevision: 1,
+              cutoffAt: "2026-10-19T02:00:00Z",
+              analysisId: null,
+              errorCode: null,
+              usage: null,
+              createdAt: "2026-10-19T02:00:00Z",
+              finishedAt: null,
+            },
+          }),
+          { status: 202 },
+        );
+      if (path === "/api/v1/analysis-runs/model-run")
+        return new Response(
+          JSON.stringify({
+            data: {
+              id: "model-run",
+              status: "SUCCEEDED",
+              analysisId: "model-version",
+              usage: { inputTokens: 40, outputTokens: 15 },
+            },
+          }),
+        );
+      if (path.includes("/evidence?"))
+        return new Response(JSON.stringify(page([evidence, publicEvidence])));
+      if (path === "/api/v1/analysis-capabilities")
+        return new Response(
+          JSON.stringify({
+            data: {
+              rulesEnabled: true,
+              modelEnabled: true,
+              provider: "openai",
+              model: "configured-model",
+              maxOutputTokens: 800,
+              dailyTokenBudget: 100000,
+            },
+          }),
+        );
+      if (path.includes("/analyses?")) {
+        const generated = fetcher.mock.calls.some(
+          ([called, init]) =>
+            String(called).endsWith("/analysis-runs") &&
+            (init as RequestInit | undefined)?.method === "POST",
+        );
+        return new Response(
+          JSON.stringify(
+            page(
+              generated
+                ? [
+                    {
+                      id: "model-version",
+                      projectId: "p1",
+                      level: "SCREEN",
+                      version: 1,
+                      origin: "MODEL",
+                      projectRevision: 1,
+                      basedOnAnalysisId: null,
+                      createdAt: "2026-10-19T02:00:01Z",
+                      cutoffAt: "2026-10-19T02:00:00Z",
+                      rulesVersion: null,
+                      model: {
+                        provider: "openai",
+                        name: "configured-model",
+                        promptVersion: "model-analysis-v1",
+                      },
+                      evidenceIds: ["e-public"],
+                      evidenceSnapshots: [publicEvidence],
+                      trendSnapshot: null,
+                      sections: [
+                        {
+                          key: "WHAT",
+                          claims: [
+                            {
+                              kind: "FACT",
+                              text: "公开页面记录了首批用户。",
+                              evidenceIds: ["e-public"],
+                            },
+                          ],
+                        },
+                        {
+                          key: "PROBLEM",
+                          claims: [
+                            {
+                              kind: "UNKNOWN",
+                              text: "需求强度未知。",
+                              evidenceIds: [],
+                            },
+                          ],
+                        },
+                        {
+                          key: "ATTENTION",
+                          claims: [
+                            {
+                              kind: "HYPOTHESIS",
+                              text: "可能值得观察。",
+                              evidenceIds: [],
+                            },
+                          ],
+                        },
+                        {
+                          key: "FIT",
+                          claims: [
+                            {
+                              kind: "UNKNOWN",
+                              text: "适配度待人工判断。",
+                              evidenceIds: [],
+                            },
+                          ],
+                        },
+                      ],
+                      openQuestions: ["是否留存？"],
+                      nextChecks: ["人工核对第二来源。"],
+                      contextChanged: false,
+                    },
+                  ]
+                : [],
+            ),
+          ),
+        );
+      }
+      throw new Error(`unexpected request ${path}`);
+    });
+    vi.stubGlobal("fetch", fetcher);
+    render(<AnalysisPanel project={project} evidenceRevision={0} />);
+    await screen.findByText("还没有初筛版本");
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "生成模型初筛" }));
+    expect(
+      (screen.getByLabelText(/创始人访谈/) as HTMLInputElement).disabled,
+    ).toBe(true);
+    await user.click(screen.getByLabelText(/公开产品说明/));
+    await user.click(
+      screen.getByRole("button", { name: "调用模型并冻结版本" }),
+    );
+    expect(
+      (await screen.findAllByText("公开页面记录了首批用户。")).length,
+    ).toBeGreaterThan(0);
+    expect(screen.getByText("模型生成")).toBeTruthy();
+    const post = fetcher.mock.calls.find(
+      ([path, options]) =>
+        String(path).endsWith("/analysis-runs") &&
+        (options as RequestInit | undefined)?.method === "POST",
+    );
+    expect(JSON.parse(String((post?.[1] as RequestInit).body))).toMatchObject({
+      level: "SCREEN",
+      mode: "MODEL",
+      projectRevision: 1,
+      evidenceIds: ["e-public"],
+    });
   });
 });

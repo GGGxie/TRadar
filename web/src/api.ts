@@ -492,6 +492,30 @@ export function runRulesAnalysis(
     },
   );
 }
+export function runModelAnalysis(
+  projectId: string,
+  input: {
+    level: AnalysisLevel;
+    projectRevision: number;
+    evidenceIds: string[];
+  },
+  key: string,
+) {
+  return request<Resource<AnalysisRun>>(
+    `/projects/${encodeURIComponent(projectId)}/analysis-runs`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Idempotency-Key": key },
+      body: JSON.stringify({ ...input, mode: "MODEL" }),
+    },
+  );
+}
+export function getAnalysisRun(id: string, signal?: AbortSignal) {
+  return request<Resource<AnalysisRun>>(
+    `/analysis-runs/${encodeURIComponent(id)}`,
+    { signal },
+  );
+}
 export function getAnalysisCapabilities(signal?: AbortSignal) {
   return request<Resource<AnalysisCapabilities>>("/analysis-capabilities", {
     signal,
