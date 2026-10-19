@@ -4,10 +4,12 @@ import { ProjectList } from "./ProjectList";
 import { ProjectDetails } from "./ProjectDetails";
 import { SettingsPage } from "./SettingsPage";
 import { LibraryPage } from "./LibraryPage";
+import { BriefPage } from "./BriefPage";
 import "./styles.css";
 import "./evidence.css";
 import "./analysis.css";
 import "./research.css";
+import "./brief.css";
 function App() {
   const path = window.location.pathname;
   const projectID = path.startsWith("/projects/")
@@ -15,6 +17,7 @@ function App() {
     : null;
   const isSettings = path === "/settings";
   const isLibrary = path === "/library";
+  const isBriefs = path === "/briefs";
   const today = new Intl.DateTimeFormat("zh-CN", {
     timeZone: "Asia/Shanghai",
     year: "numeric",
@@ -42,12 +45,24 @@ function App() {
         <nav aria-label="主导航">
           <a
             href="/radar"
-            className={`nav-item ${!projectID && !isSettings && !isLibrary ? "active" : ""}`}
+            className={`nav-item ${!projectID && !isSettings && !isLibrary && !isBriefs ? "active" : ""}`}
             aria-current={
-              !projectID && !isSettings && !isLibrary ? "page" : undefined
+              !projectID && !isSettings && !isLibrary && !isBriefs
+                ? "page"
+                : undefined
             }
           >
             <span aria-hidden="true">◎</span> 项目目录
+            <span className="nav-chevron" aria-hidden="true">
+              ›
+            </span>
+          </a>
+          <a
+            href="/briefs"
+            className={`nav-item ${isBriefs ? "active" : ""}`}
+            aria-current={isBriefs ? "page" : undefined}
+          >
+            <span aria-hidden="true">◫</span> 每日简报
             <span className="nav-chevron" aria-hidden="true">
               ›
             </span>
@@ -102,7 +117,9 @@ function App() {
                   ? "信息源设置"
                   : isLibrary
                     ? "认知库"
-                    : "项目目录"}
+                    : isBriefs
+                      ? "每日简报"
+                      : "项目目录"}
             </strong>
           </span>
           <time>{today}</time>
@@ -114,6 +131,8 @@ function App() {
             <SettingsPage />
           ) : isLibrary ? (
             <LibraryPage />
+          ) : isBriefs ? (
+            <BriefPage />
           ) : (
             <ProjectList />
           )}

@@ -303,6 +303,69 @@ export interface Experiment extends ExperimentFields {
   createdAt: string;
   updatedAt: string;
 }
+export type BriefReason =
+  | "NEW_DISCOVERY"
+  | "FIRST_COVERAGE"
+  | "GROWTH_CHANGE"
+  | "NEW_EVIDENCE"
+  | "ANALYSIS_CHANGE"
+  | "RESEARCH_CHANGE";
+export interface BriefCoverage {
+  source: RemoteSource;
+  latestCollectedAt: string | null;
+  state: "AVAILABLE" | "STALE" | "NO_DATA";
+}
+export interface BriefItem {
+  projectId: string;
+  projectRevision: number;
+  title: string;
+  url: string;
+  reasons: BriefReason[];
+  factSummary: string;
+  hypothesisSummary: string | null;
+  personalDecision: string | null;
+  nextAction: string | null;
+  evidenceIds: string[];
+  evidenceSnapshots: Evidence[];
+  trendSnapshot: TrendResult;
+  analysisId: string | null;
+  researchRevision: number | null;
+  changeFingerprint: string;
+}
+export interface DailyBrief {
+  id: string;
+  date: string;
+  timeZone: string;
+  version: number;
+  cutoffAt: string;
+  generatedAt: string;
+  previousBriefId: string | null;
+  selectionVersion: string;
+  rankingVersion: string;
+  isDemo: boolean;
+  items: BriefItem[];
+  coverage: BriefCoverage[];
+  emptyReason: "NO_DATA" | "NO_NEW_CHANGES" | null;
+}
+export interface BriefRun {
+  id: string;
+  status: "PENDING" | "RUNNING" | "SUCCEEDED" | "FAILED" | "INTERRUPTED";
+  revision: number;
+  date: string;
+  timeZone: string;
+  cutoffAt: string;
+  briefId: string | null;
+  errorCode: string | null;
+  createdAt: string;
+  finishedAt: string | null;
+}
+export interface BriefSettings {
+  revision: number;
+  isEnabled: boolean;
+  timeZone: string;
+  localTime: string;
+  maxItems: number;
+}
 export class ApiError extends Error {
   constructor(
     message: string,
@@ -562,6 +625,42 @@ export function triggerIngestion(source: RemoteSource, key: string) {
       "Idempotency-Key": key,
     },
     body: JSON.stringify({ source }),
+  });
+}
+export function listBriefs(page = 1, signal?: AbortSignal) {
+  return request<Page<DailyBrief>>(`/briefs?page=${page}&pageSize=20`, {
+    signal,
+  });
+}
+export function createBrief(date: string, timeZone: string, key: string) {
+  return request<Resource<BriefRun>>("/briefs", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Idempotency-Key": key,
+    },
+    body: JSON.stringify({ date, timeZone }),
+  });
+}
+export function getBriefRun(id: string, signal?: AbortSignal) {
+  return request<Resource<BriefRun>>(`/brief-runs/${encodeURIComponent(id)}`, {
+    signal,
+  });
+}
+export function getBriefSettings(signal?: AbortSignal) {
+  return request<Resource<BriefSettings>>("/brief-settings", { signal });
+}
+export function updateBriefSettings(
+  current: BriefSettings,
+  patch: Partial<Omit<BriefSettings, "revision">>,
+) {
+  return request<Resource<BriefSettings>>("/brief-settings", {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+      "If-Match": `"${current.revision}"`,
+    },
+    body: JSON.stringify(patch),
   });
 }
 export function formatDate(value: string) {
