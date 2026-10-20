@@ -29,6 +29,7 @@
 | [T20 可运行交付](https://github.com/GGGxie/TRadar/issues/24) | [`2026-10-19-t20-delivery.md`](2026-10-19-t20-delivery.md) | 已完成 |
 | [检查点 D](https://github.com/GGGxie/TRadar/issues/25) | [`2026-10-19-checkpoint-d.md`](2026-10-19-checkpoint-d.md) | 已完成 |
 | [GitHub Issues 任务看板迁移](https://github.com/GGGxie/TRadar/issues/27) | [`2026-10-19-github-issues-migration.md`](2026-10-19-github-issues-migration.md) | 已完成 |
+| [Cloudflare Tunnel 临时运行](https://github.com/GGGxie/TRadar/issues/28) | [`2026-10-20-cloudflare-tunnel-launch.md`](2026-10-20-cloudflare-tunnel-launch.md) | 已完成，临时服务运行中 |
 
 ## 后续记录模板
 
