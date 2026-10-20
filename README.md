@@ -8,7 +8,7 @@ React 页面由同一进程提供。
 
 - [能力图与首版范围](CAPABILITY-MAP.md)
 - [详细规格总览](docs/spec-overview.md)
-- [实施任务与状态](tasks/todo.md)
+- [GitHub Issues 任务看板](https://github.com/GGGxie/TRadar/issues)
 - [实际验证证据](docs/verification.md)
 - [六模块验收矩阵](docs/acceptance-matrix.md)
 - [agent-skills 工程过程记录](docs/process/README.md)

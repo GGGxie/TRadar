@@ -1,7 +1,8 @@
 # 实施验证记录
 
-更新时间：2026-10-19（Asia/Shanghai）。这里只记录实际执行过的检查；未列模块仍按
-[`tasks/todo.md`](../tasks/todo.md) 视为未完成。
+更新时间：2026-10-19（Asia/Shanghai）。这里只记录实际执行过的检查；当前任务状态以
+[GitHub Issues](https://github.com/GGGxie/TRadar/issues) 为准，六模块逐项证据见
+[`acceptance-matrix.md`](acceptance-matrix.md)。
 
 ## 已验证范围
 

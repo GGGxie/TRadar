@@ -5,8 +5,9 @@
 ## 执行依据
 
 用户连续要求开展并继续下一步，已授权在既定首版范围内连续完成规格、计划、实现与验证。
-这不扩大到公网发布、付费服务或对外通知。任务及验收进度以
-[实施清单](../tasks/todo.md) 和 [验证记录](verification.md) 为准。
+这不扩大到公网发布、付费服务或对外通知。任务状态以
+[GitHub Issues](https://github.com/GGGxie/TRadar/issues) 为准，实际验收证据见
+[验证记录](verification.md)。
 六模块 58 项验收编号的逐条证据见 [验收矩阵](acceptance-matrix.md)。
 
 ## 六个模块规格

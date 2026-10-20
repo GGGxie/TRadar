@@ -1,7 +1,7 @@
 # T18 可选模型：agent-skills 过程记录
 
 - 记录日期：2026-10-19（Asia/Shanghai）
-- 任务来源：`tasks/todo.md` 的 T18，`SPEC-project-analysis.md`
+- 任务来源：[GitHub Issue #22](https://github.com/GGGxie/TRadar/issues/22)，`SPEC-project-analysis.md`
 - 状态：已完成
 - 实现与验收提交：见第 7 节（按领域、HTTP 接入、界面、文档拆分）
 

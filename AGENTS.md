@@ -31,7 +31,16 @@
 执行模式优先于上游默认阶段审批规则，不重复请求已经获得的授权。
 用户连续要求推进，按已提出的首版范围完成必要规格、计划、实现与验证，不再把每个常规阶段当作新的权限请求。
 这不表示用户逐页审阅过全部规格，也不授权扩大范围、付费服务或公网发布。
-当前任务与验收进度以 `tasks/todo.md` 为准。
+GitHub Issues 是唯一任务看板和当前状态真源：
+
+- 开始工作前先搜索 `GGGxie/TRadar` 的开放 Issue，避免重复任务；
+- 新工作先建立 Issue，正文写清目标、边界、验收方法和必要依赖；
+- 分支、提交和 `docs/process/` 记录引用 Issue 编号；
+- 只有实际验证通过后才以 `completed` 关闭；取消或范围外事项使用 `not planned` 并说明原因；
+- 规格和验证文档保存行为基线及证据，不另建第二份完成状态清单。
+
+首版历史计划及 T00–T20、检查点 A–D 已迁移到
+[GitHub Issues #1–#26](https://github.com/GGGxie/TRadar/issues?q=is%3Aissue+is%3Aclosed)。
 
 ## agent-skills 过程记录
 

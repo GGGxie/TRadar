@@ -2,7 +2,7 @@
 
 状态：**首版范围基线，本地交付检查已完成**。日期：2026-10-13，2026-10-19 更新。
 用户已连续授权在本范围内推进规格、计划、实现和验证；实际完成情况见
-[任务清单](tasks/todo.md) 与 [验证记录](docs/verification.md)。
+[GitHub Issues](https://github.com/GGGxie/TRadar/issues) 与 [验证记录](docs/verification.md)。
 
 ## 目标与默认假设
 
@@ -83,5 +83,5 @@ SQLite 的取舍依据是首版单用户、低写入并发和易于备份；后�
 详细规格索引见 [规格总览](docs/spec-overview.md)。
 后续连续执行授权若获得，将记录原始指示，避免逐阶段重复确认。
 
-当前进入增量实施阶段；项目目录、不可变证据、信息采集、趋势、分析及研究工作台已经实现，
-其余模块按任务清单继续推进。
+首版六个模块已经完成；后续工作通过
+[GitHub Issues](https://github.com/GGGxie/TRadar/issues) 建立、跟踪和验收。

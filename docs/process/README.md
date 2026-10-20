@@ -2,7 +2,7 @@
 
 这个目录记录 TRadar 在实际研发中如何使用
 [addyosmani/agent-skills](https://github.com/addyosmani/agent-skills)。它面向想学习工程方法的读者，
-补充规格、任务清单和验证结果之间通常看不到的执行过程。
+补充规格、GitHub Issues 和验证结果之间通常看不到的执行过程。
 
 ## 如何阅读
 
@@ -22,12 +22,13 @@
 
 | 任务 | 记录 | 状态 |
 |---|---|---|
-| T16 日报选择与版本 | [`2026-10-19-t16-daily-brief-core.md`](2026-10-19-t16-daily-brief-core.md) | 已完成，补记 |
-| T17 日报交付 | [`2026-10-19-t17-daily-brief-delivery.md`](2026-10-19-t17-daily-brief-delivery.md) | 已完成 |
-| T18 可选模型 | [`2026-10-19-t18-optional-model.md`](2026-10-19-t18-optional-model.md) | 已完成 |
-| T19 集成与安全 | [`2026-10-19-t19-integration-security.md`](2026-10-19-t19-integration-security.md) | 已完成 |
-| T20 可运行交付 | [`2026-10-19-t20-delivery.md`](2026-10-19-t20-delivery.md) | 已完成 |
-| 检查点 D | [`2026-10-19-checkpoint-d.md`](2026-10-19-checkpoint-d.md) | 已完成 |
+| [T16 日报选择与版本](https://github.com/GGGxie/TRadar/issues/20) | [`2026-10-19-t16-daily-brief-core.md`](2026-10-19-t16-daily-brief-core.md) | 已完成，补记 |
+| [T17 日报交付](https://github.com/GGGxie/TRadar/issues/21) | [`2026-10-19-t17-daily-brief-delivery.md`](2026-10-19-t17-daily-brief-delivery.md) | 已完成 |
+| [T18 可选模型](https://github.com/GGGxie/TRadar/issues/22) | [`2026-10-19-t18-optional-model.md`](2026-10-19-t18-optional-model.md) | 已完成 |
+| [T19 集成与安全](https://github.com/GGGxie/TRadar/issues/23) | [`2026-10-19-t19-integration-security.md`](2026-10-19-t19-integration-security.md) | 已完成 |
+| [T20 可运行交付](https://github.com/GGGxie/TRadar/issues/24) | [`2026-10-19-t20-delivery.md`](2026-10-19-t20-delivery.md) | 已完成 |
+| [检查点 D](https://github.com/GGGxie/TRadar/issues/25) | [`2026-10-19-checkpoint-d.md`](2026-10-19-checkpoint-d.md) | 已完成 |
+| [GitHub Issues 任务看板迁移](https://github.com/GGGxie/TRadar/issues/27) | [`2026-10-19-github-issues-migration.md`](2026-10-19-github-issues-migration.md) | 已完成 |
 
 ## 后续记录模板
 
@@ -35,7 +36,7 @@
 # Txx 标题：agent-skills 过程记录
 
 - 记录日期：YYYY-MM-DD（Asia/Shanghai）
-- 任务来源：`tasks/todo.md` 的 Txx
+- 任务来源：GitHub Issue #n
 - 状态：进行中 / 已完成
 - 对应提交：进行中 / `<commit>`
 

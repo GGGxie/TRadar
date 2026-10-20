@@ -1,7 +1,7 @@
 # 检查点 D：agent-skills 过程记录
 
 - 记录日期：2026-10-19（Asia/Shanghai）
-- 任务来源：`tasks/todo.md` 的检查点 D
+- 任务来源：[GitHub Issue #25](https://github.com/GGGxie/TRadar/issues/25)
 - 状态：已完成
 - 实现与验收提交：本记录所在的检查点 D 提交
 
@@ -21,7 +21,7 @@ DB 10。证据矩阵写入 `docs/acceptance-matrix.md`。
 
 ## 3. 核对方法
 
-1. 从六份 `SPEC-*.md` 直接提取 ID，不从 `tasks/todo.md` 反推，防止遗漏被任务摘要省略的条件。
+1. 从六份 `SPEC-*.md` 直接提取 ID，不从任务摘要反推，防止遗漏被摘要省略的条件。
 2. 对每个 ID 找到最接近失败模式的领域测试、HTTP 集成测试、组件测试或 Chromium 流程。
 3. 并发/幂等、同源、安全文本等共享机制允许“领域 replay/mismatch + 共享机制并发/安全测试”组成证据链，
    但在矩阵中明确列出，不把间接证据写成领域专用测试。

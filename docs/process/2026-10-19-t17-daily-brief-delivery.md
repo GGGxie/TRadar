@@ -1,7 +1,7 @@
 # T17 日报交付：agent-skills 过程记录
 
 - 记录日期：2026-10-19（Asia/Shanghai；实施从 2026-10-16 开始）
-- 任务来源：`tasks/todo.md` 的 T17，`SPEC-daily-brief.md`
+- 任务来源：[GitHub Issue #21](https://github.com/GGGxie/TRadar/issues/21)，`SPEC-daily-brief.md`
 - 状态：已完成
 - 实现与验收提交：`feat: deliver scheduled daily briefs`、`feat: add daily brief workspace`、
   `test: verify daily brief delivery`

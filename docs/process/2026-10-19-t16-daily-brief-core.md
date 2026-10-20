@@ -1,7 +1,7 @@
 # T16 日报选择与版本：agent-skills 过程记录
 
 - 记录日期：2026-10-19（Asia/Shanghai，补记 2026-10-16 的实施）
-- 任务来源：`tasks/todo.md` 的 T16，`SPEC-daily-brief.md`
+- 任务来源：[GitHub Issue #20](https://github.com/GGGxie/TRadar/issues/20)，`SPEC-daily-brief.md`
 - 状态：已完成
 - 对应提交：`c3d7a19 feat: freeze versioned daily briefs`
 

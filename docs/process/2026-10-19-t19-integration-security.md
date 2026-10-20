@@ -1,7 +1,7 @@
 # T19 集成与安全：agent-skills 过程记录
 
 - 记录日期：2026-10-19（Asia/Shanghai）
-- 任务来源：`tasks/todo.md` 的 T19
+- 任务来源：[GitHub Issue #23](https://github.com/GGGxie/TRadar/issues/23)
 - 状态：已完成
 - 实现与验收提交：本记录所在的 T19 提交
 
