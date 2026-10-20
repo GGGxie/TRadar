@@ -61,7 +61,7 @@ TRadar 只读取进程环境变量，不会自动读取 `.env`。`.env.example` 
 | `TRADAR_ADDR` | `127.0.0.1:8080` | HTTP 监听地址 |
 | `TRADAR_DB_PATH` | `data/radar.db` | SQLite 文件路径 |
 | `TRADAR_WEB_DIR` | `web/dist` | 已构建前端目录 |
-| `TRADAR_ACCESS_TOKEN` | 本地为空；非回环至少 32 字符 | 非回环 API Bearer 凭据 |
+| `TRADAR_ACCESS_TOKEN` | 本地为空；非回环至少 32 字符 | API Bearer 凭据；设置后浏览器首次访问会弹出令牌输入框 |
 | `TRADAR_ALLOWED_HOST` | 空 | 非回环时允许的精确 Host 名称 |
 | `TRADAR_DEV_ORIGIN` | 空 | 仅开发时允许的 Vite Origin，例如 `http://127.0.0.1:5173` |
 | `TRADAR_GITHUB_TOKEN` | 空 | 可选；提升 GitHub 请求额度 |
@@ -70,6 +70,10 @@ TRadar 只读取进程环境变量，不会自动读取 `.env`。`.env.example` 
 远程使用优先通过 SSH 隧道访问默认回环服务。直接绑定非回环地址时，进程会拒绝少于 32 字符的
 `TRADAR_ACCESS_TOKEN`，HTTP 层还要求 `TRADAR_ALLOWED_HOST` 与请求 Host 匹配。首版没有 TLS、账号和
 多用户授权，不能直接作为公网服务发布。
+
+设置 `TRADAR_ACCESS_TOKEN` 后，前端静态页面（仅 GET/HEAD 的构建产物）无需令牌即可加载，
+`/api/*`、`/healthz` 和所有写入方法仍必须携带 `Authorization: Bearer`。浏览器收到 401 时显示令牌
+输入框，令牌只保存在当前标签页的 sessionStorage。静态页面不含任何数据，但未授权者能看到界面外壳。
 
 模型分析默认关闭。只有显式设置以下全部变量才会启用并产生外部调用：
 
@@ -149,5 +153,6 @@ docs/                规格、验证和 agent-skills 过程记录
 - Product Hunt 尚未使用用户账号 Token 做真实联调；GitHub 日历史未在真实冒烟中覆盖。
 - 可选模型已用假提供者验证，但没有执行真实 OpenAI 付费调用。
 - 首版是本地单用户、单进程应用，没有 TLS、公网部署、账号、多租户、外部告警或托管 CI。
+- 浏览器端令牌保存在 sessionStorage，仍受同源 XSS 影响（当前由 `script-src 'self'` 的 CSP 缓解）；需要更强隔离时应改用 HttpOnly Cookie 会话或 Cloudflare Access。
 - 人工链接和实践产物链接只保存与显示，服务不会访问其中内容。
 - SQLite 适合当前低并发范围；多实例或多用户写入需要重新评估存储方案。
