@@ -375,13 +375,32 @@ export class ApiError extends Error {
     super(message);
   }
 }
+const ACCESS_TOKEN_KEY = "tradar.accessToken";
+export const UNAUTHORIZED_EVENT = "tradar:unauthorized";
+// 令牌只放在 sessionStorage：关闭标签页即失效，也不会被其他标签页或下次访问带走。
+export function getAccessToken(): string | null {
+  return window.sessionStorage.getItem(ACCESS_TOKEN_KEY);
+}
+export function saveAccessToken(token: string) {
+  window.sessionStorage.setItem(ACCESS_TOKEN_KEY, token);
+}
+export function clearAccessToken() {
+  window.sessionStorage.removeItem(ACCESS_TOKEN_KEY);
+}
+function withAccessToken(options: RequestInit): RequestInit {
+  const token = getAccessToken();
+  if (!token) return options;
+  const headers = new Headers(options.headers);
+  headers.set("Authorization", `Bearer ${token}`);
+  return { ...options, headers };
+}
 export async function request<T>(
   path: string,
   options: RequestInit = {},
 ): Promise<T> {
   let result: Response;
   try {
-    result = await fetch(`/api/v1${path}`, options);
+    result = await fetch(`/api/v1${path}`, withAccessToken(options));
   } catch (error) {
     if (error instanceof DOMException && error.name === "AbortError")
       throw error;
@@ -408,6 +427,10 @@ export async function request<T>(
         message += `：${Object.values(body.error.fields).join("；")}`;
     } catch {
       /* Non-JSON gateway errors still have a useful message. */
+    }
+    if (code === "UNAUTHORIZED") {
+      clearAccessToken();
+      window.dispatchEvent(new Event(UNAUTHORIZED_EVENT));
     }
     throw new ApiError(message, result.status, code);
   }

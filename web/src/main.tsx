@@ -5,6 +5,7 @@ import { ProjectDetails } from "./ProjectDetails";
 import { SettingsPage } from "./SettingsPage";
 import { LibraryPage } from "./LibraryPage";
 import { BriefPage } from "./BriefPage";
+import { AccessGate } from "./AccessGate";
 import "./styles.css";
 import "./evidence.css";
 import "./analysis.css";
@@ -147,6 +148,8 @@ function App() {
 }
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <App />
+    <AccessGate>
+      <App />
+    </AccessGate>
   </StrictMode>,
 );
