@@ -1,6 +1,6 @@
 # SPEC — project-analysis
 
-状态：**详细规格草案，待用户评审**。日期：2026-10-13。尚未实现或运行测试。
+状态：**人工、规则与可选模型分析均已实现并验证**。日期：2026-10-19。
 范围依据：[能力图](CAPABILITY-MAP.md)；共享技术、运行、安全、API 与测试约定见
 [spec-common](docs/spec-common.md)。本文只定义规格，不包含实施计划。
 
@@ -143,7 +143,7 @@ interface AnalysisCapabilities {
 
 1. 规则生成只整理现有项目信息、引用和趋势证据，按固定模板列出未知项与待验证问题，
    明示“规则模板”。不根据星数推断收入、付费意愿、留存或市场规模。
-2. MODEL 请求先冻结选定公开证据、项目版本和趋势快照。`public=false` 的证据拒绝发送（422），
+2. MODEL 请求先冻结选定公开证据、项目版本和趋势快照。`isPublic=false` 的证据拒绝发送（422），
    不悄悄删掉选择内容；默认不发送个人笔记、私人摘录、环境变量或凭据。
 3. 模型提供者仅做受限文本生成，无浏览、工具或代码执行。上下文把来源文字视作引用数据；
    生成结果必须经过同一内容 schema、同项目证据引用、大小与枚举校验。
@@ -160,9 +160,10 @@ interface AnalysisCapabilities {
 ## 目标目录、命令与代码风格
 
 实现目标为 `internal/analysis/`、相邻 `*_test.go`、`internal/httpapi/` 及
-`web/src/features/analysis/`。采用 spec-common 中 Go/TypeScript 风格、类型示例、版本策略及全量命令；
+`web/src/AnalysisPanel.tsx`。采用 spec-common 中 Go/TypeScript 风格、类型示例、版本策略及全量命令；
 本模块目标验证命令为 `go test -race ./internal/analysis/... ./internal/httpapi/...`。
-这些路径与命令尚未实现，当前不执行，也不宣称通过。
+人工、规则与可选模型路径已经实现；目标命令及完整浏览器路径的实际结果记录在
+[验证记录](docs/verification.md)。真实付费模型调用保持显式 opt-in，自动验证使用假提供者。
 
 ## 验收场景
 

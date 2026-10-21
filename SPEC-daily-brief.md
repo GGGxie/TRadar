@@ -1,6 +1,7 @@
 # SPEC — daily-brief
 
-状态：**详细规格草案，待用户评审**。日期：2026-10-13。尚未实现或运行测试。
+状态：**T16–T17 已实现并验证**。规格日期：2026-10-13；
+实现进度更新：2026-10-19。
 范围依据：[能力图](CAPABILITY-MAP.md)；通用时间、幂等、分页、安全及技术约定见
 [spec-common](docs/spec-common.md)。
 
@@ -149,10 +150,12 @@ Markdown 必须来自保存快照，含日期 / 时区 / version / cutoffAt / �
 
 ## 目标目录、命令与测试
 
-目标目录 `internal/brief/`、相邻 `*_test.go`、`web/src/features/brief/` 与 `web/e2e/brief.spec.ts`。
+实现目录为 `internal/brief/`、相邻 `*_test.go`、`web/src/BriefPage.tsx` 与
+`web/e2e/zz-brief.spec.ts`（使用 `zz-` 让依赖空库的目录流程先执行）。
 Go/TypeScript 风格示例、技术栈及全量目标命令沿用 spec-common；本模块验证目标为
 `go test -race ./internal/brief/... ./internal/httpapi/...` 与
-`npm --prefix web run test:e2e -- brief.spec.ts`。当前尚无应用，这些不是已执行命令。
+`npm --prefix web run test:e2e -- zz-brief.spec.ts`。截至 2026-10-19，brief / HTTP 聚焦测试、
+全量 Go race/vet、前端组件/构建及完整 Chromium 流程均已执行通过。
 
 使用固定时钟、临时 SQLite 和确定性输入做选择 / 版本 / 调度集成测试，浏览器验证站内阅读和下载。
 

@@ -1,6 +1,7 @@
 # SPEC — research-workspace
 
-状态：**详细规格草案，待用户评审**。日期：2026-10-13。尚未实现或运行测试。
+状态：**已实现并验证**。日期：2026-10-13，2026-10-16 更新。研究记录、偏好、认知库和
+实践验证均已完成 T14/T15 验收。
 范围依据：[能力图](CAPABILITY-MAP.md)，通用契约见 [spec-common](docs/spec-common.md)。
 
 ## 目标、依赖与非目标
@@ -138,11 +139,12 @@ stage 和 decision 独立，不因收藏、分析生成或实验完成而自动�
 
 ## 目标目录、命令、风格与测试
 
-目标 `internal/research/`、相邻 `*_test.go`、`web/src/features/research/`、
-`web/src/pages/`、`web/e2e/research.spec.ts`。技术栈、Go/TypeScript 示例与全量命令沿用 spec-common。
+实际目录为 `internal/research/`、相邻 `*_test.go`、当前扁平前端结构下的 `web/src/ResearchPanel.tsx`、
+`web/src/LibraryPage.tsx`、`web/src/ResearchPreferencesPanel.tsx` 及 `web/e2e/research.spec.ts`。
+技术栈、Go/TypeScript 示例与全量命令沿用 spec-common。
 本模块目标命令为 `go test -race ./internal/research/... ./internal/httpapi/...`、
 `npm --prefix web run test -- --run`、`npm --prefix web run test:e2e -- research.spec.ts`。
-当前这些实现与命令尚不存在，验收表是未来测试要求，不是测试结果。
+仓库、API、组件及真实浏览器流程均已执行；实际证据见验证记录。
 
 | ID | 场景 | 必须结果 |
 |---|---|---|
@@ -153,7 +155,7 @@ stage 和 decision 独立，不因收藏、分析生成或实验完成而自动�
 | RW-05 | 完成实验缺结果；含陌生仓库 URL 的方法 | 缺结果 422；URL 仅链接、无网络抓取和代码执行 |
 | RW-06 | 模型重生成、采集更新、来源改关联 | 个人 notes / decision 不变；项目历史保持原归属 |
 | RW-07 | XSS 文本、键盘遍历、360px 页面 | 无脚本执行；主要操作可键盘完成，焦点可见且无水平溢出 |
-| RW-08 | 空结果、离线保存、模型 / PH 未配置、演示模式 | 状态文案不同，失败保留编辑内容，演示全局可见 |
+| RW-08 | 空结果、离线保存、模型 / PH 未配置、首版无演示模式 | 状态文案不同，失败保留编辑内容；不自动回退样例数据，未来若引入演示模式必须全局可见 |
 | RW-09 | 标签归一化、列表过滤 / 分页、非法字段 / null | 稳定结果与清空语义；不接受服务器字段或误清空 |
 
 测试使用临时 SQLite、API 集成、Testing Library 与真实浏览器流程；控件及反馈需人工视觉复核。

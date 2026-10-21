@@ -8,22 +8,23 @@
 单用户中文 Web 应用，默认只监听 `127.0.0.1:8080`，可通过 SSH 隧道访问。
 Go API 与构建后的前端同源；开发时 Vite 代理 `/api`。运行资料保存在本地 SQLite。
 首版只有一个应用进程及一个持久化数据库；不引入消息队列、向量库或微服务。
+HTTP JSON 请求体上限 1 MiB，超过返回 413；单 URL 至多 4096 字符。
 所有时间以 UTC RFC3339 保存，界面和日报默认使用 `Asia/Shanghai`。
 来源发布时间、首次发现时间、采集时间、观测时间必须分别记录。
 
 ## 技术栈与版本策略
 
-- 后端：Go 1.25 语言基线，标准库 `net/http`、`database/sql`、`log/slog`；
-  本机已验证工具链为 1.25.6，不在规格阶段更改工具链。
-- 数据库：SQLite，拟选无 CGO 的 `modernc.org/sqlite`；初始化依赖时选择支持 Go 1.25 的版本，
-  把确切版本写入 `go.mod` / `go.sum`，执行漏洞与兼容性检查后更新本节。
-- 前端：React 19 系列 + TypeScript + Vite；使用当前 Node 22.23.1。
-  确切包版本由实现阶段首次依赖解析锁定到 `package-lock.json`，不使用浮动 CDN 导入。
+- 后端：Go 1.26.9 安全基线，标准库 `net/http`、`database/sql`、`log/slog`；
+  规格阶段观测到本机工具链为 1.25.6，T19 漏洞检查后由 `go.mod` 固定并通过 Go 自动工具链验证。
+- 数据库：SQLite，使用无 CGO 的 `modernc.org/sqlite` v1.53.0；
+  确切依赖图锁定在 `go.mod` / `go.sum`。
+- 前端：React 19.3.0 + TypeScript 5.9.3 + Vite 8.3.4；使用 Node 22.23.1，
+  npm 依赖锁定在 `package-lock.json`，不使用浮动 CDN 导入。
 - 验证：Go testing/httptest、Vitest + Testing Library、Playwright 浏览器流程。
   浏览器验证能力若不可用，明确列出未验证项，不以编译代替浏览器验证。
 
 版本锁定是实现阶段的工程任务，不是用户需要先解决的产品问题。
-选择依据：[Go 1.25](https://go.dev/doc/go1.25)、
+选择依据：[Go 1.26](https://go.dev/doc/go1.26)、
 [SQLite 驱动文档](https://pkg.go.dev/modernc.org/sqlite)、
 [React 版本](https://react.dev/versions)、[Vite 环境要求](https://vite.dev/guide/)。
 
@@ -45,7 +46,7 @@ data/                  运行数据库；排除版本控制
 docs/                  规格依据、架构决策、运行和验证记录
 ```
 
-以下为**工程实现后必须支持的目标命令，当前没有应用代码，不能据此声称已运行**。
+以下命令已作为当前工程入口建立；各次实际执行结果记录在 `docs/verification.md`。
 
 ```sh
 go mod download
@@ -62,8 +63,8 @@ npm --prefix web run test:e2e
 ```
 
 构建产物是否嵌入 Go 二进制将在实施计划中确定；首版必须给出可复现的本地启动和备份方式。
-默认生产数据为空。只有显式 `TRADAR_DEMO=true` 才加载带演示标记的独立数据文件，
-演示模式不访问真实来源，也不读取真实数据库。
+默认运行数据为空。首版不提供演示模式，也没有演示数据回退；测试使用临时数据库，
+不会把测试数据冒充实时结果。
 
 ## API 通用契约
 
