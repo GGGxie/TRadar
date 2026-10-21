@@ -120,7 +120,7 @@ func (s *Server) guard(next http.Handler) http.Handler {
 			writeError(w, r, fault.New("FORBIDDEN", "请求主机未授权"))
 			return
 		}
-		if s.config.AccessToken != "" {
+		if s.config.AccessToken != "" && !isStaticShellRequest(r) {
 			auth := r.Header.Get("Authorization")
 			if !strings.HasPrefix(auth, "Bearer ") || subtle.ConstantTimeCompare([]byte(strings.TrimPrefix(auth, "Bearer ")), []byte(s.config.AccessToken)) != 1 {
 				writeError(w, r, fault.New("UNAUTHORIZED", "需要访问凭据"))
@@ -159,6 +159,18 @@ func (s *Server) guard(next http.Handler) http.Handler {
 		}()
 		next.ServeHTTP(w, r)
 	})
+}
+
+// isStaticShellRequest 判断请求是否只是读取前端构建产物。
+// 构建产物不含任何数据，放行后浏览器才能加载页面并提示输入令牌；
+// 所有 /api 路径、/healthz 以及非读取方法仍然必须携带令牌。
+// 路径清理方式与 static 保持一致，避免 "//api/..." 之类写法绕过判断。
+func isStaticShellRequest(r *http.Request) bool {
+	if r.Method != http.MethodGet && r.Method != http.MethodHead {
+		return false
+	}
+	clean := filepath.Clean("/" + r.URL.Path)
+	return clean != "/healthz" && clean != "/api" && !strings.HasPrefix(clean, "/api/")
 }
 
 func decode(r *http.Request, dest any) error {
