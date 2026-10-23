@@ -107,7 +107,11 @@ func (e *GitHubExecutor) Execute(ctx context.Context, run IngestionRun, reposito
 		}
 		for _, query := range queries {
 			values := url.Values{}
-			values.Set("q", literalGitHubKeyword(keyword)+" "+query.qualifier)
+			q := literalGitHubKeyword(keyword) + " " + query.qualifier
+			if run.Config.MinStars > 0 {
+				q += " stars:>=" + strconv.Itoa(run.Config.MinStars)
+			}
+			values.Set("q", q)
 			values.Set("sort", query.sort)
 			values.Set("order", "desc")
 			values.Set("per_page", strconv.Itoa(query.count))

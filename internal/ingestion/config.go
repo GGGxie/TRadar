@@ -40,6 +40,8 @@ type SourceConfig struct {
 	Feeds                  []string
 	ItemsPerFeed           int
 	MaxPages               int
+	MinStars               int
+	MinPoints              int
 	Revision               int
 	NextScheduledAt        *string
 	NextRetryAt            *string
@@ -57,9 +59,11 @@ func (c SourceConfig) MarshalJSON() ([]byte, error) {
 		common["candidatesPerKeyword"] = c.CandidatesPerKeyword
 		common["trackedSourceRecordIds"] = nonNilStrings(c.TrackedSourceRecordIDs)
 		common["requestBudgetPerHour"] = c.RequestBudgetPerHour
+		common["minStars"] = c.MinStars
 	case HackerNews:
 		common["feeds"] = nonNilStrings(c.Feeds)
 		common["itemsPerFeed"] = c.ItemsPerFeed
+		common["minPoints"] = c.MinPoints
 		common["trackedSourceRecordIds"] = nonNilStrings(c.TrackedSourceRecordIDs)
 	case ProductHunt:
 		common["discoveryDays"] = c.DiscoveryDays
@@ -82,10 +86,20 @@ func (c *SourceConfig) UnmarshalJSON(data []byte) error {
 		Feeds                  []string     `json:"feeds"`
 		ItemsPerFeed           int          `json:"itemsPerFeed"`
 		MaxPages               int          `json:"maxPages"`
+		MinStars               *int         `json:"minStars"`
+		MinPoints              *int         `json:"minPoints"`
 	}
 	var value wire
 	if err := json.Unmarshal(data, &value); err != nil {
 		return err
+	}
+	// #34 之前保存的设置没有门槛字段，读取时采用默认门槛。
+	minStars, minPoints := DefaultMinStars, DefaultMinPoints
+	if value.MinStars != nil {
+		minStars = *value.MinStars
+	}
+	if value.MinPoints != nil {
+		minPoints = *value.MinPoints
 	}
 	*c = SourceConfig{
 		Source: value.Source, IsEnabled: value.IsEnabled, IsScheduleEnabled: value.IsScheduleEnabled,
@@ -93,9 +107,16 @@ func (c *SourceConfig) UnmarshalJSON(data []byte) error {
 		CandidatesPerKeyword: value.CandidatesPerKeyword, TrackedSourceRecordIDs: value.TrackedSourceRecordIDs,
 		RequestBudgetPerHour: value.RequestBudgetPerHour, Feeds: value.Feeds,
 		ItemsPerFeed: value.ItemsPerFeed, MaxPages: value.MaxPages,
+		MinStars: minStars, MinPoints: minPoints,
 	}
 	return nil
 }
+
+// 采集质量门槛默认值：只拦截新候选，已入库或跟踪中的记录照常刷新。
+const (
+	DefaultMinStars  = 20
+	DefaultMinPoints = 10
+)
 
 type SourceConfigPatch struct {
 	IsEnabled              *bool     `json:"isEnabled"`
@@ -109,6 +130,8 @@ type SourceConfigPatch struct {
 	Feeds                  *[]string `json:"feeds"`
 	ItemsPerFeed           *int      `json:"itemsPerFeed"`
 	MaxPages               *int      `json:"maxPages"`
+	MinStars               *int      `json:"minStars"`
+	MinPoints              *int      `json:"minPoints"`
 }
 
 type Credentials struct {
@@ -275,18 +298,18 @@ func ListSourceViews(ctx context.Context, q catalog.Querier, filter SourceViewFi
 }
 
 func (p SourceConfigPatch) empty() bool {
-	return p.IsEnabled == nil && p.IsScheduleEnabled == nil && p.IntervalMinutes == nil && p.Keywords == nil && p.DiscoveryDays == nil && p.CandidatesPerKeyword == nil && p.TrackedSourceRecordIDs == nil && p.RequestBudgetPerHour == nil && p.Feeds == nil && p.ItemsPerFeed == nil && p.MaxPages == nil
+	return p.IsEnabled == nil && p.IsScheduleEnabled == nil && p.IntervalMinutes == nil && p.Keywords == nil && p.DiscoveryDays == nil && p.CandidatesPerKeyword == nil && p.TrackedSourceRecordIDs == nil && p.RequestBudgetPerHour == nil && p.Feeds == nil && p.ItemsPerFeed == nil && p.MaxPages == nil && p.MinStars == nil && p.MinPoints == nil
 }
 
 func (p SourceConfigPatch) validateFields(source RemoteSource) error {
 	invalid := false
 	switch source {
 	case GitHub:
-		invalid = p.Feeds != nil || p.ItemsPerFeed != nil || p.MaxPages != nil
+		invalid = p.Feeds != nil || p.ItemsPerFeed != nil || p.MaxPages != nil || p.MinPoints != nil
 	case HackerNews:
-		invalid = p.Keywords != nil || p.DiscoveryDays != nil || p.CandidatesPerKeyword != nil || p.RequestBudgetPerHour != nil || p.MaxPages != nil
+		invalid = p.Keywords != nil || p.DiscoveryDays != nil || p.CandidatesPerKeyword != nil || p.RequestBudgetPerHour != nil || p.MaxPages != nil || p.MinStars != nil
 	case ProductHunt:
-		invalid = p.Keywords != nil || p.CandidatesPerKeyword != nil || p.TrackedSourceRecordIDs != nil || p.RequestBudgetPerHour != nil || p.Feeds != nil || p.ItemsPerFeed != nil
+		invalid = p.Keywords != nil || p.CandidatesPerKeyword != nil || p.TrackedSourceRecordIDs != nil || p.RequestBudgetPerHour != nil || p.Feeds != nil || p.ItemsPerFeed != nil || p.MinStars != nil || p.MinPoints != nil
 	default:
 		return fault.Missing("来源")
 	}
@@ -330,6 +353,12 @@ func (p SourceConfigPatch) apply(config *SourceConfig) {
 	if p.MaxPages != nil {
 		config.MaxPages = *p.MaxPages
 	}
+	if p.MinStars != nil {
+		config.MinStars = *p.MinStars
+	}
+	if p.MinPoints != nil {
+		config.MinPoints = *p.MinPoints
+	}
 }
 
 func validateSourceConfig(ctx context.Context, q catalog.Querier, config SourceConfig, hasCredentials bool) error {
@@ -363,6 +392,9 @@ func validateSourceConfig(ctx context.Context, q catalog.Querier, config SourceC
 		if config.RequestBudgetPerHour < 1 || config.RequestBudgetPerHour > maxBudget {
 			return fault.Field("requestBudgetPerHour", "请求预算超过当前凭据允许范围")
 		}
+		if config.MinStars < 0 || config.MinStars > 100000 {
+			return fault.Field("minStars", "最低 Stars 需要在 0–100,000 之间")
+		}
 		return validateTrackedSources(ctx, q, config.Source, config.TrackedSourceRecordIDs)
 	case HackerNews:
 		if len(config.Feeds) < 1 || len(config.Feeds) > 3 {
@@ -377,6 +409,9 @@ func validateSourceConfig(ctx context.Context, q catalog.Querier, config SourceC
 		}
 		if config.ItemsPerFeed < 1 || config.ItemsPerFeed > 50 || config.ItemsPerFeed*len(config.Feeds) > 60 {
 			return fault.Field("itemsPerFeed", "HN 单榜 1–50 且合计不能超过 60 条")
+		}
+		if config.MinPoints < 0 || config.MinPoints > 1000 {
+			return fault.Field("minPoints", "最低分数需要在 0–1,000 之间")
 		}
 		return validateTrackedSources(ctx, q, config.Source, config.TrackedSourceRecordIDs)
 	case ProductHunt:

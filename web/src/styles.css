@@ -663,6 +663,24 @@ textarea {
 .wide-field {
   grid-column: 1 / -1;
 }
+.field-with-help {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.field-with-help > label {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  font-size: 11px;
+  color: var(--muted);
+}
+.field-help {
+  font-size: 10px;
+  line-height: 1.5;
+  color: var(--muted);
+}
 .feed-field {
   border: 1px solid var(--border);
   border-radius: 6px;

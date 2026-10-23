@@ -353,9 +353,9 @@ func TestHackerNewsExecutorKeepsDiscussionIdentityAndSkipReasons(t *testing.T) {
 		case "/v0/item/106.json":
 			json.NewEncoder(w).Encode(map[string]any{"id": 106, "type": "job", "title": "Job"})
 		case "/v0/item/107.json":
-			json.NewEncoder(w).Encode(map[string]any{"id": 107, "type": "story", "title": "Show HN without link", "score": 3, "descendants": 0, "time": 1792036801})
+			json.NewEncoder(w).Encode(map[string]any{"id": 107, "type": "story", "title": "Show HN without link", "score": 13, "descendants": 0, "time": 1792036801})
 		case "/v0/item/108.json":
-			json.NewEncoder(w).Encode(map[string]any{"id": 108, "type": "story", "title": "Unsafe external link", "url": "javascript:alert(1)", "score": 4, "descendants": 1, "time": 1792036802})
+			json.NewEncoder(w).Encode(map[string]any{"id": 108, "type": "story", "title": "Unsafe external link", "url": "javascript:alert(1)", "score": 14, "descendants": 1, "time": 1792036802})
 		case "/v0/item/109.json":
 			json.NewEncoder(w).Encode(map[string]any{"id": 109, "type": "story", "title": "Metrics are unknown"})
 		default:
@@ -407,6 +407,118 @@ func TestHackerNewsExecutorKeepsDiscussionIdentityAndSkipReasons(t *testing.T) {
 		}
 	}
 }
+
+func TestSourceConfigsDefaultQualityThresholds(t *testing.T) {
+	db := openTestDB(t)
+	ctx := context.Background()
+	github, err := GetSourceConfig(ctx, db, GitHub)
+	if err != nil || github.MinStars != 20 {
+		t.Fatalf("github minStars=%d err=%v", github.MinStars, err)
+	}
+	hn, err := GetSourceConfig(ctx, db, HackerNews)
+	if err != nil || hn.MinPoints != 10 {
+		t.Fatalf("hn minPoints=%d err=%v", hn.MinPoints, err)
+	}
+	now := time.Date(2026, 10, 15, 5, 0, 0, 0, time.UTC)
+	for _, invalid := range []SourceConfigPatch{
+		{MinStars: intPointer(-1)}, {MinStars: intPointer(100001)}, {MinPoints: intPointer(5)},
+	} {
+		err = storage.WithTx(ctx, db, func(tx *sql.Tx) error {
+			_, updateErr := UpdateSourceConfig(ctx, tx, GitHub, 1, invalid, false, now)
+			return updateErr
+		})
+		if err == nil {
+			t.Fatalf("invalid github patch accepted: %+v", invalid)
+		}
+	}
+	err = storage.WithTx(ctx, db, func(tx *sql.Tx) error {
+		_, updateErr := UpdateSourceConfig(ctx, tx, HackerNews, 1, SourceConfigPatch{MinPoints: intPointer(1001)}, false, now)
+		return updateErr
+	})
+	if err == nil {
+		t.Fatal("hn minPoints above range accepted")
+	}
+}
+
+func TestGitHubDiscoveryQueriesRequireMinimumStars(t *testing.T) {
+	db := openTestDB(t)
+	ctx := context.Background()
+	now := time.Date(2026, 10, 15, 3, 0, 0, 0, time.UTC)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]any{"total_count": 0, "incomplete_results": false, "items": []any{}})
+	}))
+	defer server.Close()
+	target, _ := url.Parse(server.URL)
+	transport := &rewriteTransport{target: target}
+	executor := NewGitHubExecutor(db, &http.Client{Transport: transport}, "", func() time.Time { return now })
+	run := createQueuedRun(t, db, GitHub, now)
+	if err := NewRunner(db, func() time.Time { return now }).Run(ctx, run.ID, executor); err != nil {
+		t.Fatal(err)
+	}
+	requests := transport.requests()
+	if len(requests) != 6 {
+		t.Fatalf("requests=%d", len(requests))
+	}
+	for _, request := range requests {
+		if !strings.Contains(request.URL.Query().Get("q"), " stars:>=20") {
+			t.Fatalf("query without star threshold: %s", request.URL.Query().Get("q"))
+		}
+	}
+}
+
+func TestHackerNewsSkipsNewLowPointStoriesButRefreshesKnownOnes(t *testing.T) {
+	db := openTestDB(t)
+	ctx := context.Background()
+	now := time.Date(2026, 10, 15, 5, 0, 0, 0, time.UTC)
+	scores := map[int]any{201: 50, 202: 3, 203: nil}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch request.URL.Path {
+		case "/v0/topstories.json":
+			json.NewEncoder(w).Encode([]int{201, 202, 203})
+		case "/v0/newstories.json", "/v0/showstories.json":
+			json.NewEncoder(w).Encode([]int{})
+		default:
+			id, _ := strconv.Atoi(strings.TrimSuffix(strings.TrimPrefix(request.URL.Path, "/v0/item/"), ".json"))
+			item := map[string]any{"id": id, "type": "story", "title": "Story " + strconv.Itoa(id), "url": "https://example.com/" + strconv.Itoa(id), "descendants": 1, "time": 1792036800}
+			if scores[id] != nil {
+				item["score"] = scores[id]
+			}
+			json.NewEncoder(w).Encode(item)
+		}
+	}))
+	defer server.Close()
+	target, _ := url.Parse(server.URL)
+	executor := NewHackerNewsExecutor(db, &http.Client{Transport: &rewriteTransport{target: target}}, func() time.Time { return now })
+	runner := NewRunner(db, func() time.Time { return now })
+
+	first := createQueuedRun(t, db, HackerNews, now)
+	if err := runner.Run(ctx, first.ID, executor); err != nil {
+		t.Fatal(err)
+	}
+	result, err := GetRun(ctx, db, first.ID)
+	// 202 已知低分：跳过且不写错误；203 分数未知：不当作 0，保留。
+	if err != nil || result.Status != StatusSucceeded || result.AcceptedItems != 2 || result.SkippedItems != 1 || len(result.Errors) != 0 {
+		t.Fatalf("first hn run: %+v err=%v", result, err)
+	}
+	assertTableCount(t, db, "source_records", 2)
+
+	// 已入库的故事分数跌破门槛后仍需刷新，否则趋势会断档。
+	scores[201] = 6
+	now = now.Add(time.Hour)
+	second := createQueuedRun(t, db, HackerNews, now)
+	if err = runner.Run(ctx, second.ID, executor); err != nil {
+		t.Fatal(err)
+	}
+	var refreshed int
+	if err = db.QueryRow(`SELECT value FROM observations o JOIN source_records sr ON sr.id=o.source_record_id WHERE sr.external_id='201' AND o.run_id=? AND o.metric='POINTS'`, second.ID).Scan(&refreshed); err != nil || refreshed != 6 {
+		t.Fatalf("known story refresh=%d err=%v", refreshed, err)
+	}
+	assertTableCount(t, db, "source_records", 2)
+}
+
+func intPointer(value int) *int { return &value }
 
 func TestEmptyRemoteResultsAreSuccessfulWithoutInventedProjects(t *testing.T) {
 	t.Run("github", func(t *testing.T) {
