@@ -672,6 +672,24 @@ export function saveResearch(
 export function listResearch(params: URLSearchParams, signal?: AbortSignal) {
   return request<Page<ResearchEntry>>(`/research?${params}`, { signal });
 }
+export interface ResearchRhythm {
+  timeZone: string;
+  dayStart: string;
+  weekStart: string;
+  monthStart: string;
+  dailySaved: number;
+  weeklyDeep: number;
+  monthlyPractice: number;
+  dailySaveTarget: number;
+  weeklyDeepTarget: number;
+  monthlyPracticeTarget: number;
+}
+export function getResearchRhythm(timeZone: string, signal?: AbortSignal) {
+  return request<Resource<ResearchRhythm>>(
+    `/research-rhythm?timeZone=${encodeURIComponent(timeZone)}`,
+    { signal },
+  );
+}
 export function getResearchPreferences(signal?: AbortSignal) {
   return request<Resource<ResearchPreferences>>("/research-preferences", {
     signal,

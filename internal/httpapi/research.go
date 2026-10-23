@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"net/http"
+	"time"
 
 	"tradar/internal/fault"
 	"tradar/internal/research"
@@ -221,4 +222,27 @@ func (s *Server) researchPreferences(w http.ResponseWriter, r *http.Request) {
 	default:
 		methodError(w, r)
 	}
+}
+
+// researchRhythm 返回认知库的研究节奏进度（#48）。timeZone 为 IANA 名称，缺省 Asia/Shanghai。
+func (s *Server) researchRhythm(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		methodError(w, r)
+		return
+	}
+	zone := r.URL.Query().Get("timeZone")
+	if zone == "" {
+		zone = "Asia/Shanghai"
+	}
+	location, err := time.LoadLocation(zone)
+	if err != nil || zone == "Local" {
+		writeError(w, r, fault.Field("timeZone", "需要有效的 IANA 时区"))
+		return
+	}
+	rhythm, err := research.GetRhythm(r.Context(), s.db, s.now(), location)
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, response{Data: rhythm})
 }

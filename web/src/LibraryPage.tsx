@@ -2,8 +2,10 @@ import { useEffect, useState, type FormEvent } from "react";
 import {
   categories,
   formatDate,
+  getResearchRhythm,
   listResearch,
   request,
+  type ResearchRhythm,
   type Project,
   type ResearchDecision,
   type ResearchEntry,
@@ -102,6 +104,7 @@ export function LibraryPage() {
         </div>
         <span className="library-count">{total} 条研究记录</span>
       </header>
+      <RhythmPanel />
       <form className="library-filters" onSubmit={filter}>
         <label className="library-search">
           <span>搜索认知库</span>
@@ -221,6 +224,9 @@ export function LibraryPage() {
                 <div>
                   <strong>下一步</strong>
                   <p>{entry.nextAction || "尚未安排下一步。"}</p>
+                  {entry.nextActionAt && (
+                    <NextActionTime value={entry.nextActionAt} />
+                  )}
                 </div>
               </div>
             </article>
@@ -248,6 +254,77 @@ export function LibraryPage() {
           </nav>
         </div>
       )}
+    </section>
+  );
+}
+
+// 下一步时间：到期后在站内标出，不发送外部提醒（SPEC-research-workspace）。
+function NextActionTime({ value }: { value: string }) {
+  const overdue = new Date(value).getTime() <= Date.now();
+  return (
+    <time
+      dateTime={value}
+      className={overdue ? "next-action-time overdue" : "next-action-time"}
+    >
+      {overdue ? "已到期 · " : "计划时间 · "}
+      {formatDate(value)}
+    </time>
+  );
+}
+
+// 研究节奏：只做提示，建议为 0 的项不显示，超过建议也不阻止保存（#48）。
+function RhythmPanel() {
+  const [rhythm, setRhythm] = useState<ResearchRhythm | null>(null);
+  useEffect(() => {
+    const controller = new AbortController();
+    const zone =
+      Intl.DateTimeFormat().resolvedOptions().timeZone || "Asia/Shanghai";
+    getResearchRhythm(zone, controller.signal)
+      .then((result) => setRhythm(result.data))
+      .catch(() => {
+        // 节奏是附加信息；读取失败时不影响认知库。
+      });
+    return () => controller.abort();
+  }, []);
+  if (!rhythm) return null;
+  const items = [
+    {
+      label: "今日收藏",
+      value: rhythm.dailySaved,
+      target: rhythm.dailySaveTarget,
+      hint: "今天变为收藏的项目",
+    },
+    {
+      label: "本周深研",
+      value: rhythm.weeklyDeep,
+      target: rhythm.weeklyDeepTarget,
+      hint: "本周写过六维深研的项目",
+    },
+    {
+      label: "本月实践",
+      value: rhythm.monthlyPractice,
+      target: rhythm.monthlyPracticeTarget,
+      hint: "本月新建过实践记录的项目",
+    },
+  ].filter((item) => item.target > 0);
+  if (!items.length) return null;
+  return (
+    <section className="rhythm-panel" aria-label="研究节奏">
+      {items.map((item) => (
+        <div key={item.label}>
+          <span>{item.label}</span>
+          <strong>
+            {item.value} / {item.target}
+          </strong>
+          <small className="muted">
+            {item.value > item.target
+              ? "已超过建议，节奏只是参考"
+              : item.value === item.target
+                ? "已达到建议"
+                : item.hint}
+          </small>
+        </div>
+      ))}
     </section>
   );
 }
