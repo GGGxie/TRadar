@@ -93,6 +93,57 @@ afterEach(() => {
 });
 
 describe("BriefPage", () => {
+  it("downloads Markdown with the access token and the server filename", async () => {
+    window.sessionStorage.setItem("tradar.accessToken", "secret-token");
+    const fetcher = vi.fn((input: RequestInfo | URL) => {
+      const path = String(input);
+      if (path.endsWith("/brief-settings")) return json({ data: settings });
+      if (path.includes("/briefs?page="))
+        return json({
+          data: [brief],
+          pagination: { page: 1, pageSize: 20, totalItems: 1, totalPages: 1 },
+        });
+      if (path.endsWith("/markdown"))
+        return Promise.resolve(
+          new Response("# TRadar 日报", {
+            headers: {
+              "Content-Type": "text/markdown; charset=utf-8",
+              "Content-Disposition":
+                'attachment; filename="tradar-brief-2026-10-16-v1.md"',
+            },
+          }),
+        );
+      throw new Error(`unexpected request ${path}`);
+    });
+    vi.stubGlobal("fetch", fetcher);
+    const createObjectURL = vi.fn(() => "blob:brief");
+    const revokeObjectURL = vi.fn();
+    vi.stubGlobal(
+      "URL",
+      Object.assign(URL, { createObjectURL, revokeObjectURL }),
+    );
+    const clicked: string[] = [];
+    vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function (
+      this: HTMLAnchorElement,
+    ) {
+      clicked.push(`${this.download}|${this.href}`);
+    });
+    render(<BriefPage />);
+    await userEvent.click(
+      await screen.findByRole("link", { name: "下载 Markdown" }),
+    );
+    await waitFor(() =>
+      expect(clicked).toEqual(["tradar-brief-2026-10-16-v1.md|blob:brief"]),
+    );
+    const call = fetcher.mock.calls.find(([input]) =>
+      String(input).endsWith("/markdown"),
+    ) as unknown as [string, RequestInit];
+    expect(new Headers(call[1].headers).get("Authorization")).toBe(
+      "Bearer secret-token",
+    );
+    window.sessionStorage.clear();
+  });
+
   it("reads frozen versions, generates today, and saves versioned settings", async () => {
     const calls: Array<{ path: string; options?: RequestInit }> = [];
     vi.stubGlobal(
