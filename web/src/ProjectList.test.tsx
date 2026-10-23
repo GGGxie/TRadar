@@ -121,7 +121,7 @@ describe("ProjectList", () => {
     // 本页全部未评分：说明增速如何产生，并指向信息源设置。
     const hint = screen.getByRole("note");
     expect(hint.textContent).toContain(
-      "增速需要同一项目相隔约 24 小时的两次观测",
+      "增速需要同一项目相隔 24–26 小时的两次观测",
     );
     expect(
       within(hint)
@@ -163,6 +163,36 @@ describe("ProjectList", () => {
     expect(address.get("q")).toBe("agent");
     expect(address.get("page")).toBeNull();
     window.history.replaceState(null, "", "/");
+  });
+
+  it("labels the trend score in scored rows", async () => {
+    const item = radarItem("scored", "acme/scored", { index: 1, metrics: [] }, [
+      "GITHUB",
+    ]);
+    item.trend.score = 50;
+    item.trend.status = "READY";
+    item.trend.growth.delta = 7476;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({
+              data: [item],
+              pagination: {
+                page: 1,
+                pageSize: 20,
+                totalItems: 1,
+                totalPages: 1,
+              },
+            }),
+          ),
+      ),
+    );
+    render(<ProjectList />);
+    const row = (await screen.findByText("acme/scored")).closest("a")!;
+    expect(within(row).getByText("趋势分 50.0")).toBeTruthy();
+    expect(within(row).getByText("24 小时净增 +7476")).toBeTruthy();
   });
 
   it("guides an empty workspace to collect from sources first", async () => {

@@ -214,10 +214,11 @@ export function ProjectList() {
             {data.data.every(({ trend }) => trend.score == null) && (
               <p className="radar-hint" role="note">
                 <span>
-                  本页项目暂按当前关注度排列。增速需要同一项目相隔约 24
-                  小时的两次观测，可以明天再采集一次，或
+                  本页项目暂按当前关注度排列。增速需要同一项目相隔 24–26
+                  小时的两次观测：手动采集请在明天同一时间后的两小时内再采一次，或
                 </span>
                 <a href="/settings">开启定时采集</a>
+                <span>（每小时一次即可自动满足）。</span>
               </p>
             )}
             <div className="project-table">
@@ -266,10 +267,11 @@ export function ProjectList() {
                       </small>
                     ) : (
                       <>
-                        <strong>{trend.score.toFixed(1)}</strong>
+                        <strong>趋势分 {trend.score.toFixed(1)}</strong>
                         {trend.growth.delta != null && (
                           <small>
-                            净增 {trend.growth.delta > 0 ? "+" : ""}
+                            {trendWindow === "7d" ? "7 天" : "24 小时"}净增{" "}
+                            {trend.growth.delta > 0 ? "+" : ""}
                             {trend.growth.delta}
                           </small>
                         )}

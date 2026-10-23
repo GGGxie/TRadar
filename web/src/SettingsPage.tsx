@@ -281,11 +281,13 @@ function SourceCard({
       {source.source === "PRODUCT_HUNT" && !source.hasCredentials && (
         <p className="source-notice">需要 Product Hunt Token 才能采集</p>
       )}
-      {source.nextRetryAt && (
-        <p className="source-notice">
-          来源退避至 {formatDate(source.nextRetryAt)}
-        </p>
-      )}
+      {/* 退避时间过去后不再提示，避免显示已失效的状态（#47）。 */}
+      {source.nextRetryAt &&
+        new Date(source.nextRetryAt).getTime() > Date.now() && (
+          <p className="source-notice">
+            来源退避至 {formatDate(source.nextRetryAt)}
+          </p>
+        )}
 
       <div className="source-form">
         <label className="toggle-field">
