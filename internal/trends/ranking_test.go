@@ -59,6 +59,84 @@ func TestSortProjectTrendsIsStableForScoredAndAccumulatingGroups(t *testing.T) {
 	}
 }
 
+func TestComputeProjectKeepsLatestAttentionPerPlatformWithoutScoring(t *testing.T) {
+	asOf := trendBase.Add(49 * time.Hour)
+	project := trendProject("project-1", trendBase)
+	records := []catalog.SourceRecord{
+		trendSource("github", project.ID, "GITHUB", asOf.Add(-time.Hour)),
+		trendSource("hn-a", project.ID, "HACKER_NEWS", asOf.Add(-time.Hour)),
+		trendSource("hn-b", project.ID, "HACKER_NEWS", asOf.Add(-2*time.Hour)),
+	}
+	observations := []catalog.Observation{
+		trendPoint("g-old", "github", "STARS", 900, trendBase.Add(40*time.Hour)),
+		trendPoint("g-new", "github", "STARS", 1200, trendBase.Add(48*time.Hour)),
+		trendPoint("g-future", "github", "STARS", 5000, asOf.Add(time.Hour)),
+		trendPoint("g-forks", "github", "FORKS", 30, trendBase.Add(48*time.Hour)),
+		trendPoint("hn-a-points", "hn-a", "POINTS", 80, trendBase.Add(48*time.Hour)),
+		trendPoint("hn-b-points", "hn-b", "POINTS", 140, trendBase.Add(47*time.Hour)),
+		trendPoint("hn-b-comments", "hn-b", "COMMENTS", 12, trendBase.Add(47*time.Hour)),
+	}
+	result, err := ComputeProject(project, records, observations, asOf, Window24Hours)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Score != nil || result.Status != StatusInsufficientHistory {
+		t.Fatalf("single-window samples must stay unscored: %+v", result)
+	}
+	want := []AttentionMetric{
+		{SourceRecordID: "github", Source: "GITHUB", Metric: "STARS", Value: 1200, ObservedAt: catalog.Timestamp(trendBase.Add(48 * time.Hour)), ObservationID: "g-new"},
+		{SourceRecordID: "github", Source: "GITHUB", Metric: "FORKS", Value: 30, ObservedAt: catalog.Timestamp(trendBase.Add(48 * time.Hour)), ObservationID: "g-forks"},
+		{SourceRecordID: "hn-b", Source: "HACKER_NEWS", Metric: "POINTS", Value: 140, ObservedAt: catalog.Timestamp(trendBase.Add(47 * time.Hour)), ObservationID: "hn-b-points"},
+		{SourceRecordID: "hn-b", Source: "HACKER_NEWS", Metric: "COMMENTS", Value: 12, ObservedAt: catalog.Timestamp(trendBase.Add(47 * time.Hour)), ObservationID: "hn-b-comments"},
+	}
+	if len(result.Attention.Metrics) != len(want) {
+		t.Fatalf("metrics=%+v", result.Attention.Metrics)
+	}
+	for index := range want {
+		if result.Attention.Metrics[index] != want[index] {
+			t.Fatalf("metric[%d]=%+v want=%+v", index, result.Attention.Metrics[index], want[index])
+		}
+	}
+	// 指数取各平台主指标归一化后的最大值，不把 Stars 与 points 相加。
+	if result.Attention.Index == nil || *result.Attention.Index <= 0 {
+		t.Fatalf("index=%v", result.Attention.Index)
+	}
+	githubOnly, _ := ComputeProject(project, records[:1], observations, asOf, Window24Hours)
+	hnOnly, _ := ComputeProject(project, records[1:], observations, asOf, Window24Hours)
+	if *result.Attention.Index != max(*githubOnly.Attention.Index, *hnOnly.Attention.Index) {
+		t.Fatalf("index=%v github=%v hn=%v", *result.Attention.Index, *githubOnly.Attention.Index, *hnOnly.Attention.Index)
+	}
+}
+
+func TestComputeProjectWithoutObservationsHasNoAttention(t *testing.T) {
+	asOf := trendBase.Add(time.Hour)
+	project := trendProject("project-1", trendBase)
+	result, err := ComputeProject(project, []catalog.SourceRecord{trendSource("github", project.ID, "GITHUB", trendBase)}, nil, asOf, Window24Hours)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Attention.Index != nil || result.Attention.Metrics == nil || len(result.Attention.Metrics) != 0 {
+		t.Fatalf("attention=%+v", result.Attention)
+	}
+}
+
+func TestSortProjectTrendsOrdersAccumulatingGroupByAttention(t *testing.T) {
+	low, high, scored := 0.2, 0.8, 5.0
+	items := []ProjectTrend{
+		{Project: trendProject("no-attention-newest", trendBase.Add(3*time.Hour)), Trend: TrendResult{}},
+		{Project: trendProject("low", trendBase.Add(2*time.Hour)), Trend: TrendResult{Attention: AttentionResult{Index: &low}}},
+		{Project: trendProject("high", trendBase), Trend: TrendResult{Attention: AttentionResult{Index: &high}}},
+		{Project: trendProject("scored", trendBase), Trend: TrendResult{Score: &scored}},
+	}
+	SortProjectTrends(items)
+	want := []string{"scored", "high", "low", "no-attention-newest"}
+	for index, item := range items {
+		if item.Project.ID != want[index] {
+			t.Fatalf("order[%d]=%s want=%s", index, item.Project.ID, want[index])
+		}
+	}
+}
+
 func TestComputeProjectAlertsOnlyOnFreshThreeSampleAcceleration(t *testing.T) {
 	asOf := trendBase.Add(49 * time.Hour)
 	project := trendProject("project-1", trendBase)
