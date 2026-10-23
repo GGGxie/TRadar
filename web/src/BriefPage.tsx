@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import {
   ApiError,
   createBrief,
+  downloadBriefMarkdown,
   getBriefRun,
   getBriefSettings,
   listBriefs,
@@ -324,6 +325,7 @@ function BriefSettingsForm({
 }
 
 function BriefCard({ brief }: { brief: DailyBrief }) {
+  const [downloadError, setDownloadError] = useState("");
   return (
     <article className="brief-card">
       <header>
@@ -343,10 +345,22 @@ function BriefCard({ brief }: { brief: DailyBrief }) {
           className="secondary"
           href={`/api/v1/briefs/${encodeURIComponent(brief.id)}/markdown`}
           download
+          onClick={(event) => {
+            event.preventDefault();
+            setDownloadError("");
+            downloadBriefMarkdown(brief.id).catch((reason: unknown) =>
+              setDownloadError(errorMessage(reason)),
+            );
+          }}
         >
           下载 Markdown
         </a>
       </header>
+      {downloadError && (
+        <p className="error" role="alert">
+          {downloadError}
+        </p>
+      )}
       <div className="brief-coverage" aria-label="数据覆盖">
         {brief.coverage.map((item) => (
           <span
