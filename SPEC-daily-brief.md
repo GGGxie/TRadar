@@ -31,6 +31,7 @@ interface BriefItem {
   projectRevision: number;
   title: string;
   url: string;
+  summary: string; // v2 起；旧日报为空
   reasons: BriefReason[];
   factSummary: string;
   hypothesisSummary: string | null;
@@ -107,7 +108,11 @@ DailyBrief 与 BriefItem 不可变，没有 PATCH / DELETE；显式重新生成�
    不含生成时间、采集时间、快照 ID 或排行榜名次。只有时间刷新、相同内容重复采集、
    微小累计值增加或版本号增加都不构成新变化。证据内容是否不同按 catalog 不可变正文哈希判断，
    商业 / 需求类别是证据元数据或用户标注，不通过模型临时推断。
-5. 对符合变化条件的候选按趋势模块既定排序稳定取前 maxItems；理由保留全部命中的项。
+5. 对符合变化条件的候选稳定取前 maxItems；理由保留全部命中的项。`brief-selection-v2`
+   （[#35](https://github.com/GGGxie/TRadar/issues/35)）排序：有增长评分组按趋势模块规则在前；无评分组中已收藏或
+   命中 RESEARCH_CHANGE 的个人关注项目在前；其后按趋势模块的当前关注度、firstSeenAt、projectId。
+   条目 `summary` 为冻结时的项目简介（≤500 字）。`factSummary` 优先摘要首条证据；无证据时只陈述冻结趋势快照中的
+   来源观测（平台、指标、数值、UTC 观测时间，注明累计量只说明关注度），两者都没有才写「尚无可引用事实证据」。
    规则文字只摘要有证据的事实与已存分析推测，明确区分个人决策。没有分析可用 UNKNOWN 说明，
    不为凑足条数生成收入、竞争优势或增长数字。无数据生成 NO_DATA 空简报；有候选无变化生成
    NO_NEW_CHANGES 空简报，均为成功结果。

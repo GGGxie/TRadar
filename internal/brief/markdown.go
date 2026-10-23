@@ -70,6 +70,9 @@ func RenderMarkdown(brief DailyBrief) string {
 			}
 		}
 		output.WriteString("- **变化原因**：" + strings.Join(reasons, "、") + "\n")
+		if strings.TrimSpace(item.Summary) != "" {
+			writeField(&output, "简介", item.Summary)
+		}
 		writeField(&output, "事实", item.FactSummary)
 		if item.HypothesisSummary != nil {
 			writeField(&output, "已存推测", *item.HypothesisSummary)

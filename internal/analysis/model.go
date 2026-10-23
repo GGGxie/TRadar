@@ -8,7 +8,8 @@ import (
 	"tradar/internal/trends"
 )
 
-const RulesVersion = "rules-v1"
+// rules-v2（#35）：来源派生证据按类型分节，其余证据位置与 v1 相同。
+const RulesVersion = "rules-v2"
 const ModelPromptVersion = "model-analysis-v1"
 
 type Claim struct {

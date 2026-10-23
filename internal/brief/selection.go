@@ -4,9 +4,12 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"math"
 	"sort"
+	"strconv"
 	"strings"
+	"time"
 	"unicode"
 
 	"tradar/internal/analysis"
@@ -34,20 +37,31 @@ func SelectItems(input FrozenInput) ([]BriefItem, *string) {
 		}
 	}
 
-	ranked := make([]trends.ProjectTrend, len(selectedItems))
-	byProject := make(map[string]selected, len(selectedItems))
-	for index, item := range selectedItems {
-		ranked[index] = trends.ProjectTrend{Project: item.candidate.Project, Trend: item.candidate.Trend}
-		byProject[item.candidate.Project.ID] = item
+	// 有增长评分的项目按趋势排序；其后优先用户已收藏或研究有变化的项目，
+	// 再按当前关注度和趋势模块的既定并列规则排列。
+	personal := func(item selected) bool {
+		return (item.candidate.Research != nil && item.candidate.Research.IsStarred) || containsReasonCode(item.reasons, "RESEARCH_CHANGE")
 	}
-	trends.SortProjectTrends(ranked)
-	if input.MaxItems > 0 && len(ranked) > input.MaxItems {
-		ranked = ranked[:input.MaxItems]
+	sort.SliceStable(selectedItems, func(i, j int) bool {
+		left, right := selectedItems[i], selectedItems[j]
+		leftScored, rightScored := left.candidate.Trend.Score != nil, right.candidate.Trend.Score != nil
+		if leftScored != rightScored {
+			return leftScored
+		}
+		if !leftScored && personal(left) != personal(right) {
+			return personal(left)
+		}
+		return trends.LessProjectTrend(
+			trends.ProjectTrend{Project: left.candidate.Project, Trend: left.candidate.Trend},
+			trends.ProjectTrend{Project: right.candidate.Project, Trend: right.candidate.Trend},
+		)
+	})
+	if input.MaxItems > 0 && len(selectedItems) > input.MaxItems {
+		selectedItems = selectedItems[:input.MaxItems]
 	}
 
-	items := make([]BriefItem, 0, len(ranked))
-	for _, rankedItem := range ranked {
-		item := byProject[rankedItem.Project.ID]
+	items := make([]BriefItem, 0, len(selectedItems))
+	for _, item := range selectedItems {
 		items = append(items, makeBriefItem(item.candidate, item.reasons))
 	}
 	if len(items) == 0 {
@@ -113,7 +127,8 @@ func makeBriefItem(candidate CandidateSnapshot, reasons []string) BriefItem {
 	item := BriefItem{
 		ProjectID: candidate.Project.ID, ProjectRevision: candidate.Project.Revision,
 		Title: candidate.Project.Name, URL: candidate.Project.CanonicalURL,
-		Reasons: append([]string{}, reasons...), FactSummary: summarizeFact(evidence),
+		Summary: clipText(strings.TrimSpace(candidate.Project.Summary), 500),
+		Reasons: append([]string{}, reasons...), FactSummary: summarizeFact(evidence, candidate.Trend.Attention),
 		HypothesisSummary: firstHypothesis(candidate.Analysis),
 		EvidenceIDs:       evidenceIDs, EvidenceSnapshots: evidence,
 		TrendSnapshot: candidate.Trend, AnalysisSnapshot: cloneAnalysis(candidate.Analysis),
@@ -136,8 +151,16 @@ func makeBriefItem(candidate CandidateSnapshot, reasons []string) BriefItem {
 	return item
 }
 
-func summarizeFact(evidence []catalog.Evidence) string {
+var briefSourceLabels = map[string]string{"GITHUB": "GitHub", "HACKER_NEWS": "Hacker News", "PRODUCT_HUNT": "Product Hunt"}
+var briefMetricLabels = map[string]string{"STARS": "Stars", "FORKS": "Forks", "POINTS": "分数", "COMMENTS": "评论", "VOTES": "票数"}
+
+// summarizeFact 优先摘要人工或派生证据；没有证据时使用冻结趋势快照中的来源观测，
+// 只陈述平台、指标、数值和观测时间，不推断需求或收入。
+func summarizeFact(evidence []catalog.Evidence, attention trends.AttentionResult) string {
 	if len(evidence) == 0 {
+		if observed := summarizeAttention(attention); observed != "" {
+			return observed
+		}
 		return "尚无可引用事实证据。"
 	}
 	item := evidence[0]
@@ -149,6 +172,76 @@ func summarizeFact(evidence []catalog.Evidence) string {
 		prefix = "第三方估算："
 	}
 	return prefix + strings.TrimSpace(item.Excerpt)
+}
+
+func summarizeAttention(attention trends.AttentionResult) string {
+	type platform struct {
+		source, observedAt string
+		parts              []string
+	}
+	platforms := make([]*platform, 0, 3)
+	bySource := map[string]*platform{}
+	for _, metric := range attention.Metrics {
+		label, ok := briefSourceLabels[metric.Source]
+		if !ok {
+			continue
+		}
+		entry := bySource[metric.Source]
+		if entry == nil {
+			entry = &platform{source: label}
+			bySource[metric.Source] = entry
+			platforms = append(platforms, entry)
+		}
+		entry.parts = append(entry.parts, briefMetricLabels[metric.Metric]+" "+groupDigits(metric.Value))
+		if metric.ObservedAt > entry.observedAt {
+			entry.observedAt = metric.ObservedAt
+		}
+	}
+	if len(platforms) == 0 {
+		return ""
+	}
+	sentences := make([]string, 0, len(platforms))
+	for _, entry := range platforms {
+		when := entry.observedAt
+		if parsed, err := time.Parse(time.RFC3339Nano, entry.observedAt); err == nil {
+			when = parsed.UTC().Format("2006-01-02 15:04 UTC")
+		}
+		sentences = append(sentences, fmt.Sprintf("%s 累计 %s（%s）", entry.source, strings.Join(entry.parts, "、"), when))
+	}
+	return "来源观测：" + strings.Join(sentences, "；") + "。累计量只说明关注度。"
+}
+
+func groupDigits(value int64) string {
+	raw := strconv.FormatInt(value, 10)
+	sign := ""
+	if strings.HasPrefix(raw, "-") {
+		sign, raw = "-", raw[1:]
+	}
+	var builder strings.Builder
+	for index, digit := range raw {
+		if index > 0 && (len(raw)-index)%3 == 0 {
+			builder.WriteByte(',')
+		}
+		builder.WriteRune(digit)
+	}
+	return sign + builder.String()
+}
+
+func clipText(value string, limit int) string {
+	runes := []rune(value)
+	if len(runes) <= limit {
+		return value
+	}
+	return string(runes[:limit-1]) + "…"
+}
+
+func containsReasonCode(reasons []string, code string) bool {
+	for _, reason := range reasons {
+		if reason == code {
+			return true
+		}
+	}
+	return false
 }
 
 func firstHypothesis(snapshot *AnalysisSnapshot) *string {

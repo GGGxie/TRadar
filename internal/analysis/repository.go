@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -370,32 +371,67 @@ func rulesContent(project catalog.Project, level string, evidence []catalog.Evid
 	if project.Summary != "" {
 		content.Sections[0].Claims = []Claim{{Kind: "HYPOTHESIS", Text: truncate("项目目录中的自述："+project.Summary, 2000), EvidenceIDs: []string{}}}
 	}
-	if len(evidence) > 0 {
-		target := 2
-		if level == "DEEP" {
-			target = 4
+	// rules-v2：来源描述说明「是什么/产品」，来源指标说明「关注/增长」，其余证据位置同 v1。
+	// 只整理用户选中的证据；不根据星数推断需求、付费或留存。
+	describe, attention, other := 0, 2, 2
+	if level == "DEEP" {
+		describe, attention, other = 1, 3, 4
+	}
+	grouped := map[int][]catalog.Evidence{}
+	order := []int{}
+	hasMetric := false
+	for _, item := range evidence {
+		target := other
+		switch {
+		case item.Kind == "METRIC_OBSERVATION":
+			target, hasMetric = attention, true
+		case item.SourceRecordID != nil && (item.Kind == "OFFICIAL_DESCRIPTION" || item.Kind == "PUBLIC_EXCERPT"):
+			target = describe
 		}
-		claims := make([]Claim, 0, min(len(evidence), 12))
-		for index, item := range evidence {
-			if index == 11 && len(evidence) > 12 {
-				ids := make([]string, 0, len(evidence)-11)
-				for _, rest := range evidence[11:] {
-					ids = append(ids, rest.ID)
-				}
-				claims = append(claims, Claim{Kind: "FACT", Text: fmt.Sprintf("另有 %d 条选定证据已冻结，需逐条核对其主张。", len(ids)), EvidenceIDs: ids})
-				break
-			}
-			label := "证据"
-			if item.Kind == "FOUNDER_CLAIM" {
-				label = "创始人自述证据（未独立核实）"
-			} else if item.Kind == "THIRD_PARTY_ESTIMATE" {
-				label = "第三方估计证据（未独立核实）"
-			}
-			claims = append(claims, Claim{Kind: "FACT", Text: truncate(fmt.Sprintf("%s《%s》记录：%s", label, item.Title, item.Excerpt), 2000), EvidenceIDs: []string{item.ID}})
+		if _, seen := grouped[target]; !seen {
+			order = append(order, target)
 		}
-		content.Sections[target].Claims = claims
+		grouped[target] = append(grouped[target], item)
+	}
+	for _, target := range order {
+		items := grouped[target]
+		// 同一节内指标观测排在前面，便于先看到关注度事实。
+		sort.SliceStable(items, func(i, j int) bool {
+			return items[i].Kind == "METRIC_OBSERVATION" && items[j].Kind != "METRIC_OBSERVATION"
+		})
+		content.Sections[target].Claims = evidenceClaims(items)
+	}
+	if hasMetric {
+		content.OpenQuestions = append(content.OpenQuestions, "关注度来自累计指标，是否有真实使用或付费仍需一手证据？")
 	}
 	return content
+}
+
+func evidenceClaims(evidence []catalog.Evidence) []Claim {
+	claims := make([]Claim, 0, min(len(evidence), 12))
+	for index, item := range evidence {
+		if index == 11 && len(evidence) > 12 {
+			ids := make([]string, 0, len(evidence)-11)
+			for _, rest := range evidence[11:] {
+				ids = append(ids, rest.ID)
+			}
+			claims = append(claims, Claim{Kind: "FACT", Text: fmt.Sprintf("另有 %d 条选定证据已冻结，需逐条核对其主张。", len(ids)), EvidenceIDs: ids})
+			break
+		}
+		label := "证据"
+		switch {
+		case item.Kind == "FOUNDER_CLAIM":
+			label = "创始人自述证据（未独立核实）"
+		case item.Kind == "THIRD_PARTY_ESTIMATE":
+			label = "第三方估计证据（未独立核实）"
+		case item.Kind == "METRIC_OBSERVATION":
+			label = "来源指标"
+		case item.SourceRecordID != nil:
+			label = "来源记录"
+		}
+		claims = append(claims, Claim{Kind: "FACT", Text: truncate(fmt.Sprintf("%s《%s》记录：%s", label, item.Title, item.Excerpt), 2000), EvidenceIDs: []string{item.ID}})
+	}
+	return claims
 }
 
 func sectionKeys(level string) []string {
