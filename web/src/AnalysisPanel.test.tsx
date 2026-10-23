@@ -318,6 +318,36 @@ describe("AnalysisPanel", () => {
     expect(postKeys[0]).toBe(postKeys[1]);
   });
 
+  it("blocks a blank manual version until something is written", async () => {
+    // #56：表单预置的「尚未形成判断。」不算内容，空白人工版本不发请求。
+    const fetcher = vi.fn(async (path: string, options?: RequestInit) => {
+      if (options?.method === "POST")
+        return new Response("{}", { status: 500 });
+      if (path.includes("/evidence?"))
+        return new Response(JSON.stringify(page([])));
+      if (path === "/api/v1/analysis-capabilities")
+        return new Response(
+          JSON.stringify({ data: { rulesEnabled: true, modelEnabled: false } }),
+        );
+      if (path.includes("/analyses?"))
+        return new Response(JSON.stringify(page([])));
+      throw new Error(`unexpected request ${path}`);
+    });
+    vi.stubGlobal("fetch", fetcher);
+    render(<AnalysisPanel project={project} evidenceRevision={0} />);
+    await screen.findByText("还没有初筛版本");
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "新建人工版本" }));
+    await user.click(screen.getByRole("button", { name: "保存人工版本" }));
+    expect((await screen.findByRole("alert")).textContent).toContain(
+      "至少写下一条声明、待验证问题或下一步检查",
+    );
+    expect(
+      fetcher.mock.calls.some(
+        ([, init]) => (init as RequestInit | undefined)?.method === "POST",
+      ),
+    ).toBe(false);
+  });
   it("runs an enabled model with public evidence only and polls its frozen version", async () => {
     const fetcher = vi.fn(async (path: string, options?: RequestInit) => {
       if (options?.method === "POST" && path.endsWith("/analysis-runs"))

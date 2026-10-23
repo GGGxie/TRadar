@@ -291,3 +291,45 @@ func faultCode(err error) string {
 }
 
 func stringPtr(value string) *string { return &value }
+
+// #56：没有任何用户写下内容的人工版本不能保存；只写一处内容的不完整版本仍可保存。
+func TestManualAnalysisRequiresAuthoredContent(t *testing.T) {
+	db := analysisDB(t)
+	ctx := context.Background()
+	now := time.Date(2026, 10, 23, 9, 0, 0, 0, time.UTC)
+	project := createAnalysisProject(t, db, "one", now)
+	placeholder := func() []Section {
+		sections := []Section{}
+		for _, key := range []string{"NEED", "PRODUCT", "TECH", "GROWTH", "BUSINESS", "COMPETITION"} {
+			sections = append(sections, Section{Key: key, Claims: []Claim{{Kind: "UNKNOWN", Text: UnknownPlaceholder, EvidenceIDs: []string{}}}})
+		}
+		return sections
+	}
+	empty := CreateInput{Level: "DEEP", ProjectRevision: project.Revision, Content: Content{Sections: placeholder(), OpenQuestions: []string{}, NextChecks: []string{}}}
+	err := storage.WithTx(ctx, db, func(tx *sql.Tx) error {
+		_, createErr := CreateManual(ctx, tx, project.ID, empty, now)
+		return createErr
+	})
+	var problem *fault.Error
+	if !errors.As(err, &problem) || problem.Code != "VALIDATION_ERROR" || problem.Fields["content"] == "" {
+		t.Fatalf("empty manual version error=%v", err)
+	}
+	if _, total, _ := ListVersions(ctx, db, project.ID, VersionFilter{Level: "DEEP", Page: 1, PageSize: 20}); total != 0 {
+		t.Fatalf("empty manual version stored: total=%d", total)
+	}
+
+	oneClaim := empty
+	oneClaim.Content.Sections = placeholder()
+	oneClaim.Content.Sections[0].Claims[0] = Claim{Kind: "HYPOTHESIS", Text: "开发者希望先看到结论。", EvidenceIDs: []string{}}
+	if version := createManualVersion(t, db, project.ID, oneClaim, now.Add(time.Minute)); version.Version != 1 {
+		t.Fatalf("one claim version=%+v", version)
+	}
+	unknownWithNote := empty
+	unknownWithNote.Content.Sections = placeholder()
+	unknownWithNote.Content.Sections[4].Claims[0].Text = "还没找到定价信息。"
+	createManualVersion(t, db, project.ID, unknownWithNote, now.Add(2*time.Minute))
+	questionOnly := empty
+	questionOnly.Content.Sections = placeholder()
+	questionOnly.Content.OpenQuestions = []string{"真实用户是否愿意安装？"}
+	createManualVersion(t, db, project.ID, questionOnly, now.Add(3*time.Minute))
+}
