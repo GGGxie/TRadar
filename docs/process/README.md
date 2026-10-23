@@ -37,6 +37,7 @@
 | [UX-4 采集来源进入分析与日报](https://github.com/GGGxie/TRadar/issues/35) | [`2026-10-23-ux4-source-facts.md`](2026-10-23-ux4-source-facts.md) | 已完成，PR 待审阅 |
 | [UX-5 自动归类方向](https://github.com/GGGxie/TRadar/issues/36) | [`2026-10-23-ux5-auto-category.md`](2026-10-23-ux5-auto-category.md) | 已完成，PR 待审阅 |
 | [UX-6 体验小问题合集](https://github.com/GGGxie/TRadar/issues/37) | [`2026-10-23-ux6-small-fixes.md`](2026-10-23-ux6-small-fixes.md) | 已完成，PR 待审阅 |
+| [第二轮试用修复 UX-7 至 UX-12](https://github.com/GGGxie/TRadar/issues/44)（#44–#49） | [`2026-10-23-round2-fixes.md`](2026-10-23-round2-fixes.md) | 已完成，PR 待审阅 |
 
 ## 后续记录模板
 

@@ -386,3 +386,10 @@
     grid-column: 1;
   }
 }
+
+/* 证据全选 / 清空（#49） */
+.picker-shortcuts {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 8px;
+}

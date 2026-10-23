@@ -2,7 +2,7 @@
 
 - 记录日期：2026-10-23（Asia/Shanghai）
 - 任务来源：GitHub Issues [#44](https://github.com/GGGxie/TRadar/issues/44)–[#49](https://github.com/GGGxie/TRadar/issues/49)
-- 状态：进行中
+- 状态：已完成，PR 待审阅
 - 采用技能：`test-driven-development`、`incremental-implementation`、`debugging-and-error-recovery`（读取对应 `SKILL.md`）
 
 第二轮在 #43 栈顶、全新空库上以用户身份试用，发现的问题逐个建 Issue，按严重程度依次修复。每节记录根因、测试与验证。
@@ -62,3 +62,14 @@
 - **TDD**：`TestRhythmCountsOnlyTimestampedResearchFacts`（stash 实现后编译失败；加入规则深研用例后再次失败）、
   `TestResearchRhythmHTTPValidatesTimeZone`、`LibraryRhythm.test.tsx` 均先失败后通过。
 - **真实验证**：第二轮库收藏一个新项目后「今日收藏」0/3 → 1/3；10/20 的下一步显示「已到期 · 10/20 09:00」；axe 无违规。
+## #49 日报重新生成的比较基准与证据全选
+- **问题**：同日重新生成的版本 2 往往只有一两项甚至为空，看起来像「日报丢了内容」；分析证据选择只能逐项勾选。
+- **范围决策**：同日新版本以上一版本为比较起点是 DB-03 / 选择规则 2 的既定行为，不改选择逻辑，只在界面说明基准。
+- **界面**：每个日报版本显示比较基准——无 `previousBriefId` 为「首份日报：收录截止前 24 小时内…」；
+  同日为「本版只列出版本 N 之后的新变化；版本 N 中的项目仍保留在下方」；跨日写明上一份日报日期与版本。
+  证据选择区在可选项多于 1 条时提供「全选」「清空」；模型模式下全选只选公开证据。
+- **TDD**：`BriefPage.test.tsx`「explains which version each regenerated brief is compared against」、
+  `AnalysisPanel.test.tsx`「selects or clears all selectable evidence at once」均先失败后通过。
+- **真实验证**：第二轮库 6 个同日版本依次显示「版本 N−1 之后」，版本 1 显示首份说明；
+  有 2 条当前证据的项目「清空」0/2、「全选」2/2；两个页面 axe 无违规。
+- **剩余限制**：同日重新生成仍只列新变化，这是规格行为；如需「完整重排」需要单独提需求。

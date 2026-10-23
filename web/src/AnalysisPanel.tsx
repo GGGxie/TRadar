@@ -416,6 +416,32 @@ export function AnalysisPanel({
                 : "规则模板只整理你明确选择的内容。私密证据保留在本机，不会发送给外部服务。"}
             </p>
           </div>
+          {evidence.length > 1 && (
+            <div className="picker-shortcuts">
+              <button
+                type="button"
+                className="text-button"
+                disabled={saving}
+                onClick={() =>
+                  setSelectedEvidence(
+                    evidence
+                      .filter((item) => mode !== "MODEL" || item.isPublic)
+                      .map((item) => item.id),
+                  )
+                }
+              >
+                全选
+              </button>
+              <button
+                type="button"
+                className="text-button"
+                disabled={saving}
+                onClick={() => setSelectedEvidence([])}
+              >
+                清空
+              </button>
+            </div>
+          )}
           {evidence.length ? (
             <div className="analysis-evidence-picker">
               {evidence.map((item) => (
