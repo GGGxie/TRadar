@@ -437,7 +437,7 @@ func writeGitHubRepository(ctx context.Context, tx *sql.Tx, runID string, item g
 			description = *item.Description
 		}
 		project, _, createErr := catalog.CreateProject(ctx, tx, catalog.CreateProjectInput{
-			Name: item.FullName, CanonicalURL: item.HTMLURL, Summary: description, Category: "OTHER",
+			Name: item.FullName, CanonicalURL: item.HTMLURL, Summary: description, Category: classifyCategory(item.FullName, description),
 		}, observedAt)
 		if createErr != nil {
 			return catalog.SourceRecord{}, createErr

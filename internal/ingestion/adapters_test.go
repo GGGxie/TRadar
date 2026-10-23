@@ -518,6 +518,54 @@ func TestHackerNewsSkipsNewLowPointStoriesButRefreshesKnownOnes(t *testing.T) {
 	assertTableCount(t, db, "source_records", 2)
 }
 
+func TestGitHubClassifiesNewProjectsButKeepsUserCategory(t *testing.T) {
+	db := openTestDB(t)
+	ctx := context.Background()
+	now := time.Date(2026, 10, 15, 3, 0, 0, 0, time.UTC)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if request.URL.Path != "/search/repositories" || !strings.Contains(request.URL.Query().Get("q"), "agent") || !strings.Contains(request.URL.Query().Get("q"), "created:") {
+			if strings.HasSuffix(request.URL.Path, "/stargazers/history") {
+				json.NewEncoder(w).Encode([]any{})
+				return
+			}
+			json.NewEncoder(w).Encode(map[string]any{"total_count": 0, "incomplete_results": false, "items": []any{}})
+			return
+		}
+		item := githubFixtureRepository("acme/mcp-hub", 120)
+		item["description"] = "An MCP server hub for coding agents"
+		json.NewEncoder(w).Encode(map[string]any{"total_count": 1, "incomplete_results": false, "items": []any{item}})
+	}))
+	defer server.Close()
+	target, _ := url.Parse(server.URL)
+	executor := NewGitHubExecutor(db, &http.Client{Transport: &rewriteTransport{target: target}}, "", func() time.Time { return now })
+	runner := NewRunner(db, func() time.Time { return now })
+	first := createQueuedRun(t, db, GitHub, now)
+	if err := runner.Run(ctx, first.ID, executor); err != nil {
+		t.Fatal(err)
+	}
+	var projectID, category string
+	var revision int
+	if err := db.QueryRow(`SELECT id,category,revision FROM projects`).Scan(&projectID, &category, &revision); err != nil || category != "AI_AGENT" {
+		t.Fatalf("category=%q err=%v", category, err)
+	}
+	devtools := "DEVTOOLS"
+	if err := storage.WithTx(ctx, db, func(tx *sql.Tx) error {
+		_, err := catalog.UpdateProject(ctx, tx, projectID, revision, catalog.ProjectPatch{Category: &devtools}, now)
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+	now = now.Add(time.Hour)
+	second := createQueuedRun(t, db, GitHub, now)
+	if err := runner.Run(ctx, second.ID, executor); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.QueryRow(`SELECT category FROM projects WHERE id=?`, projectID).Scan(&category); err != nil || category != "DEVTOOLS" {
+		t.Fatalf("user category overwritten: %q err=%v", category, err)
+	}
+}
+
 func intPointer(value int) *int { return &value }
 
 func TestEmptyRemoteResultsAreSuccessfulWithoutInventedProjects(t *testing.T) {
