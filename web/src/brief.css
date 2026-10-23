@@ -213,7 +213,15 @@
 
 /* 日报比较基准说明（#49） */
 .brief-baseline {
-  margin: 0 0 12px;
-  font-size: 12px;
+  border-bottom: 1px solid var(--border);
   color: var(--muted);
+  font-size: 12px;
+  line-height: 1.7;
+  margin: 0;
+  padding: 12px 24px;
+}
+@media (max-width: 720px) {
+  .brief-baseline {
+    padding: 12px 16px;
+  }
 }
