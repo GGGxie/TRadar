@@ -70,6 +70,10 @@ interface ResearchPreferences {
 SCREENING、UNDECIDED、空文字与 null 提醒时间。`focusTopics` 默认 AI Agent / 开发者工具 / SaaS；
 研究建议数量默认 3 / 2 / 1，允许 0–100，0 表示不显示该项建议。
 首版展示建议，不把数量当硬限额，不把阶段编辑次数当已经完成的研究统计。
+认知库显示节奏进度（[#48](https://github.com/GGGxie/TRadar/issues/48)，`GET /research-rhythm?timeZone=`，按所选时区的今天、
+周一起的本周、本月）：今日收藏 = 今天由未收藏变为收藏且仍在收藏的项目（`starred_at`，迁移 012；此前的收藏时间未知不计）；
+本周深研 = 本周创建过人工或模型 DEEP 版本的项目（规则模板一键生成不计）；本月实践 = 本月新建过实践记录的项目。
+建议为 0 的项不显示；超过建议只提示。卡片显示下一步时间，到期标「已到期」。
 
 标签每项 trim 后 1–32 字符，最多 20 项；Unicode NFC 归一化，同一 Entry 内忽略拉丁大小写去重。
 notes 最多 50,000 字符、rationale 最多 10,000 字符；nextAction 最多 2,000 字符。

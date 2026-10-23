@@ -36,6 +36,7 @@ func TestRhythmCountsOnlyTimestampedResearchFacts(t *testing.T) {
 	insertDeepAnalysis(t, db, a.ID, now.Add(-2*24*time.Hour)) // 周三：本周
 	insertDeepAnalysis(t, db, a.ID, now.Add(-time.Hour))      // 同一项目只计一次
 	insertDeepAnalysis(t, db, b.ID, now.Add(-6*24*time.Hour)) // 上周六：不计
+	insertRulesDeepAnalysis(t, db, d.ID, now.Add(-time.Hour)) // 一键规则模板不算深研
 	insertExperiment(t, db, b.ID, now.Add(-20*24*time.Hour))  // 10 月 3 日：本月
 	insertExperiment(t, db, c.ID, now.Add(-25*24*time.Hour))  // 9 月 28 日：上月
 
@@ -71,6 +72,16 @@ func insertDeepAnalysis(t *testing.T, db *sql.DB, projectID string, at time.Time
 	_, err := db.Exec(`INSERT INTO analyses(id,project_id,level,version,origin,project_revision,created_at,cutoff_at,content_json,evidence_ids_json,evidence_snapshots_json,trend_snapshot_json)
 		VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`, projectID+at.String(), projectID, "DEEP", at.Unix()%100000+1, "MANUAL", 1,
 		at.UTC().Format("2006-01-02T15:04:05.000000000Z"), at.UTC().Format("2006-01-02T15:04:05.000000000Z"), `{"sections":[],"openQuestions":[],"nextChecks":[]}`, `[]`, `[]`, `{}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func insertRulesDeepAnalysis(t *testing.T, db *sql.DB, projectID string, at time.Time) {
+	t.Helper()
+	stamp := at.UTC().Format("2006-01-02T15:04:05.000000000Z")
+	_, err := db.Exec(`INSERT INTO analyses(id,project_id,level,version,origin,project_revision,created_at,cutoff_at,rules_version,content_json,evidence_ids_json,evidence_snapshots_json,trend_snapshot_json)
+		VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)`, "rules-"+projectID, projectID, "DEEP", 99999, "RULES", 1, stamp, stamp, "rules-v2", `{"sections":[],"openQuestions":[],"nextChecks":[]}`, `[]`, `[]`, `{}`)
 	if err != nil {
 		t.Fatal(err)
 	}

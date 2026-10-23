@@ -575,3 +575,35 @@
     flex-direction: column;
   }
 }
+
+/* 研究节奏与下一步时间（#48） */
+.rhythm-panel {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+  margin: 0 0 20px;
+}
+.rhythm-panel > div {
+  display: grid;
+  gap: 4px;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 12px 14px;
+  font-size: 12px;
+}
+.rhythm-panel strong {
+  font-size: 20px;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+.next-action-time {
+  display: inline-block;
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--muted);
+}
+.next-action-time.overdue {
+  color: #8a3b12;
+  font-weight: 600;
+}

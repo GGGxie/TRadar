@@ -42,7 +42,8 @@ func GetRhythm(ctx context.Context, q catalog.Querier, now time.Time, location *
 	if err = q.QueryRowContext(ctx, `SELECT count(*) FROM research_entries WHERE is_starred=1 AND starred_at>=? AND starred_at<=?`, rhythm.DayStart, until).Scan(&rhythm.DailySaved); err != nil {
 		return Rhythm{}, err
 	}
-	if err = q.QueryRowContext(ctx, `SELECT count(DISTINCT project_id) FROM analyses WHERE level='DEEP' AND created_at>=? AND created_at<=?`, rhythm.WeekStart, until).Scan(&rhythm.WeeklyDeep); err != nil {
+	// 规则模板一键生成，不代表做过深入研究；只统计人工或模型参与的六维版本。
+	if err = q.QueryRowContext(ctx, `SELECT count(DISTINCT project_id) FROM analyses WHERE level='DEEP' AND origin<>'RULES' AND created_at>=? AND created_at<=?`, rhythm.WeekStart, until).Scan(&rhythm.WeeklyDeep); err != nil {
 		return Rhythm{}, err
 	}
 	if err = q.QueryRowContext(ctx, `SELECT count(DISTINCT project_id) FROM experiments WHERE created_at>=? AND created_at<=?`, rhythm.MonthStart, until).Scan(&rhythm.MonthlyPractice); err != nil {
