@@ -269,7 +269,7 @@ func writeProductHuntPost(ctx context.Context, tx *sql.Tx, runID string, post *p
 	}
 	if !found {
 		project, _, createErr := catalog.CreateProject(ctx, tx, catalog.CreateProjectInput{
-			Name: post.Name, CanonicalURL: post.Website, Summary: description, Category: "OTHER",
+			Name: post.Name, CanonicalURL: post.Website, Summary: description, Category: classifyCategory(post.Name, post.Tagline, description),
 		}, observedAt)
 		if createErr != nil {
 			return createErr

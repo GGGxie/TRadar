@@ -42,6 +42,11 @@
 | Product Hunt | 固定 GraphQL 查询近 7 天发布，单页 20、最多 3 页；读取 post ID、主页/产品外链、发布时间、投票与评论指标 | GraphQL `errors` 必须检查；同响应部分数据可独立验证导入，失败字段不能填零。截断和 complexity 配额对用户可见 |
 
 默认采集窗口在任务开始时冻结。参数改变只影响下一次任务，任务保留所用配置版本和窗口。
+
+采集**首次创建**项目时按名称与描述（HN 为标题）归类方向（[#36](https://github.com/GGGxie/TRadar/issues/36)）：
+英文整词、中文词组匹配，按 AI Agent（agent/agentic/MCP/LLM/Claude 等）→ 开发者工具（CLI/SDK/API/framework/editor 等）→
+SaaS（saas/b2b/subscription/tenant/billing 等）的优先级取第一个命中，都不命中为 OTHER。已有项目和用户修改过的分类
+不会被后续采集覆盖；归类只用于筛选与日报关注方向匹配，不代表项目质量或商业属性已被核实。
 允许用户调整 GitHub 关键词、发现天数和跟踪项；不允许用户提供任意 API base URL、原始
 GraphQL、请求头或可执行表达式。外链仅作为候选关联证据，身份合并仍由 catalog 决定。
 
