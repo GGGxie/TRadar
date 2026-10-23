@@ -1,6 +1,7 @@
 package trends
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -105,6 +106,45 @@ func TestComputeProjectKeepsLatestAttentionPerPlatformWithoutScoring(t *testing.
 	hnOnly, _ := ComputeProject(project, records[1:], observations, asOf, Window24Hours)
 	if *result.Attention.Index != max(*githubOnly.Attention.Index, *hnOnly.Attention.Index) {
 		t.Fatalf("index=%v github=%v hn=%v", *result.Attention.Index, *githubOnly.Attention.Index, *hnOnly.Attention.Index)
+	}
+}
+
+func TestComputeProjectReturnsLatestSourceWeekWithoutDoubleCounting(t *testing.T) {
+	asOf := trendBase.Add(49 * time.Hour)
+	project := trendProject("project-1", trendBase)
+	records := []catalog.SourceRecord{trendSource("github", project.ID, "GITHUB", asOf.Add(-time.Hour))}
+	const oldWeek, newWeek int64 = 1791676800, 1792281600
+	observations := []catalog.Observation{
+		trendPoint("g-new", "github", "STARS", 1200, trendBase.Add(48*time.Hour)),
+		dailyPoint("old-0", "github", oldWeek, 0, 700, trendBase),
+		dailyPoint("new-0", "github", newWeek, 0, 890, trendBase),
+		dailyPoint("new-1", "github", newWeek, 1, 1100, trendBase),
+		// 同一来源日桶后续重取：取最新值，不累加。
+		dailyPoint("new-1-refetch", "github", newWeek, 1, 1129, trendBase.Add(time.Hour)),
+		dailyPoint("new-2-future", "github", newWeek, 2, 999, asOf.Add(time.Hour)),
+	}
+	result, err := ComputeProject(project, records, observations, asOf, Window24Hours)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Score != nil || len(result.Attention.SourceWeeks) != 1 {
+		t.Fatalf("source weeks must not score: score=%v weeks=%+v", result.Score, result.Attention.SourceWeeks)
+	}
+	week := result.Attention.SourceWeeks[0]
+	if week.SourceRecordID != "github" || week.Metric != "STARS" || week.WeekStart != catalog.Timestamp(time.Unix(newWeek, 0)) || week.TimeZone != "UNSPECIFIED" {
+		t.Fatalf("week=%+v", week)
+	}
+	if week.Total != 2019 || len(week.Days) != 7 || week.Days[0] == nil || *week.Days[0] != 890 || week.Days[1] == nil || *week.Days[1] != 1129 || week.Days[2] != nil {
+		t.Fatalf("days=%v total=%d", week.Days, week.Total)
+	}
+}
+
+func dailyPoint(id, sourceRecordID string, weekUnix int64, dayIndex int, value int64, observed time.Time) catalog.Observation {
+	return catalog.Observation{
+		ID: id, SourceRecordID: sourceRecordID, Metric: "STARS", Basis: "SOURCE_DAILY",
+		PeriodKey: fmt.Sprintf("%d:%d", weekUnix, dayIndex), Value: value,
+		ObservedAt: catalog.Timestamp(observed), FetchedAt: catalog.Timestamp(observed),
+		ProviderPeriod: &catalog.ProviderPeriod{WeekUnix: weekUnix, DayIndex: dayIndex, TimeZone: "UNSPECIFIED"},
 	}
 }
 

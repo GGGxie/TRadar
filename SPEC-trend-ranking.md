@@ -59,6 +59,8 @@
    PH Votes/Comments），按平台分列，不跨平台相加。`index = max(ln(1+主指标)/ln(1+参考规模))`，
    参考规模为 GitHub 10000、HN 500、PH 500，保留 3 位小数且不截断上限。它只用于待积累组排序和展示，
    不进入 score，也不显示为增长；过期值同样返回并附观测时间。
+   `attention.sourceWeeks` 返回该记录最新一个来源自然周的日桶（同桶取最新读取，缺失为 null）及合计，
+   时区按来源原样标注；它属于来源日级口径，界面标为「来源本周新增」，不参与净增、加速度或 score。
 
 异常增长提示需要至少 3 个有效累计样本、`rateNew >= 2 × max(rateOld,0)` 且达到最小日均净增
 （GitHub 100、HN 30、PH 30），数据必须新鲜；每个项目/指标/UTC 日最多显示一个当前提示。
@@ -77,7 +79,8 @@ acceleration:{status,value:number|null,observationIds[]}
 persistence:{status,positiveWindows:int|null,validWindows:int,totalWindows:7}
 crossSource:{platforms:Source[],sourceRecordIds[]}
 components:{growth:number|null,crossSource:number,persistence:number|null}
-attention:{index:number|null,metrics:{sourceRecordId,source,metric,value,observedAt,observationId}[]}
+attention:{index:number|null,metrics:{sourceRecordId,source,metric,value,observedAt,observationId}[],
+  sourceWeeks:{sourceRecordId,source,metric,weekStart,timeZone,days:(int|null)[7],total,observedAt}[]}
 explanations:string[], alert:{kind,threshold,observationIds[]}|null
 ```
 
@@ -111,6 +114,7 @@ HTTP 路由归属 `internal/httpapi/`。工程创建后运行 `go test -race ./i
 | TREND-07 | 同平台多个讨论不增加平台数；三个平台的来源 ID 完整返回；人工摘录不计平台加分 |
 | TREND-08 | 固定输入排序稳定；不同筛选不改变项目评分；相同分数有确定并列顺序；待积累组按当前关注度、再按 firstSeenAt |
 | TREND-11 | 单快照时 attention 列出各平台最新累计值；未来观测排除；多平台不相加；无观测时 index=null、metrics=[] |
+| TREND-12 | sourceWeeks 只取最新来源周；同桶重取不翻倍；未来读取排除；有日桶也不产生 score |
 | TREND-09 | 持续性少于 4 个有效日窗为 null/isPartial；断采不被补零，负增长日不算正向 |
 | TREND-10 | 普通关注量高但无增速样本不触发告警；满足双倍增长、绝对阈值和三样本后才提示 |
 
