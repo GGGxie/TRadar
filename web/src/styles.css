@@ -1271,7 +1271,7 @@ textarea {
   display: grid;
   gap: 16px;
 }
-.signal-sources li {
+.signal-sources > li {
   border-top: 1px solid var(--border);
   padding-top: 16px;
   display: grid;
@@ -1316,4 +1316,70 @@ textarea {
 .signal-growth {
   margin: 16px 0 0;
   font-size: 13px;
+}
+.signal-track {
+  margin-left: auto;
+}
+.signal-week p {
+  margin: 4px 0 8px;
+  font-size: 13px;
+}
+.signal-week ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 6px;
+  max-width: 420px;
+}
+.signal-week li {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 3px;
+  height: 92px;
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+.signal-bar {
+  width: 100%;
+  max-width: 28px;
+  min-height: 2px;
+  background: #9db792;
+  border-radius: 2px 2px 0 0;
+}
+/* 柱高按 0–10 档位，避免内联 style（CSP style-src 'self'）。 */
+.signal-bar.level-0 { height: 2px; }
+.signal-bar.level-1 { height: 5px; }
+.signal-bar.level-2 { height: 10px; }
+.signal-bar.level-3 { height: 15px; }
+.signal-bar.level-4 { height: 20px; }
+.signal-bar.level-5 { height: 25px; }
+.signal-bar.level-6 { height: 30px; }
+.signal-bar.level-7 { height: 35px; }
+.signal-bar.level-8 { height: 40px; }
+.signal-bar.level-9 { height: 45px; }
+.signal-bar.level-10 { height: 50px; }
+.signal-day-value {
+  color: var(--accent);
+}
+.radar-hint {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  align-items: baseline;
+  margin: 0;
+  padding: 14px 24px;
+  font-size: 12px;
+  color: var(--muted);
+  background: #f9faf8;
+  border-bottom: 1px solid var(--border);
+}
+.empty-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: center;
 }

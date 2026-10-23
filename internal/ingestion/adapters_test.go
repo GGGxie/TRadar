@@ -69,7 +69,8 @@ func TestGitHubExecutorDiscoversRenamesAndKeepsCumulativeWhenHistoryFails(t *tes
 			}
 			item := githubFixtureRepository(name, stars)
 			json.NewEncoder(w).Encode(map[string]any{"total_count": 2, "incomplete_results": phase == 5, "items": []any{item, item}})
-		case request.URL.Path == "/repos/acme/tradar/stargazers/history":
+		case request.URL.Path == "/repos/acme/tradar/stargazers/history" || (phase == 1 && request.URL.Path == "/repos/acme/radar/stargazers/history"):
+			// 第 1 轮：新发现候选占用空闲历史名额；第 2 轮起由跟踪记录读取。
 			if phase == 2 {
 				w.WriteHeader(http.StatusUnprocessableEntity)
 				w.Write([]byte(`{"message":"history unavailable"}`))
@@ -94,7 +95,7 @@ func TestGitHubExecutorDiscoversRenamesAndKeepsCumulativeWhenHistoryFails(t *tes
 		t.Fatal(err)
 	}
 	firstResult, err := GetRun(ctx, db, first.ID)
-	if err != nil || firstResult.Status != StatusSucceeded || firstResult.AcceptedItems != 1 || firstResult.ObservationsWritten != 2 || firstResult.RequestsMade != 6 {
+	if err != nil || firstResult.Status != StatusSucceeded || firstResult.AcceptedItems != 1 || firstResult.ObservationsWritten != 9 || firstResult.RequestsMade != 7 {
 		t.Fatalf("first github run: %+v err=%v", firstResult, err)
 	}
 	var source catalog.SourceRecord
@@ -201,6 +202,91 @@ func TestGitHubExecutorDiscoversRenamesAndKeepsCumulativeWhenHistoryFails(t *tes
 	}
 	if !sawUpdatedQuery {
 		t.Fatal("missing recent-push GitHub discovery bucket")
+	}
+}
+
+func TestGitHubExecutorGivesHistorySlotsToTrackedThenTopNewCandidates(t *testing.T) {
+	db := openTestDB(t)
+	ctx := context.Background()
+	now := time.Date(2026, 10, 15, 3, 0, 0, 0, time.UTC)
+	stars := map[string]int{"r10": 10, "r500": 500, "r300": 300, "r50": 50, "r40": 40, "r20": 20}
+	var historyPaths []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case request.URL.Path == "/search/repositories":
+			if !strings.Contains(request.URL.Query().Get("q"), "agent") || !strings.Contains(request.URL.Query().Get("q"), "created:") {
+				json.NewEncoder(w).Encode(map[string]any{"total_count": 0, "incomplete_results": false, "items": []any{}})
+				return
+			}
+			items := []any{}
+			for index, name := range []string{"r10", "r500", "r300", "r50", "r40", "r20"} {
+				item := githubFixtureRepository("acme/"+name, stars[name])
+				item["id"] = 100 + index
+				items = append(items, item)
+			}
+			json.NewEncoder(w).Encode(map[string]any{"total_count": len(items), "incomplete_results": false, "items": items})
+		case strings.HasSuffix(request.URL.Path, "/stargazers/history"):
+			historyPaths = append(historyPaths, request.URL.Path)
+			json.NewEncoder(w).Encode([]any{map[string]any{"week": 1791763200, "total": 7, "days": []int{1, 1, 1, 1, 1, 1, 1}}})
+		case strings.HasPrefix(request.URL.Path, "/repos/acme/"):
+			name := strings.TrimPrefix(request.URL.Path, "/repos/acme/")
+			item := githubFixtureRepository("acme/"+name, stars[name])
+			item["id"] = 101 // 只有 r500 会被跟踪
+			json.NewEncoder(w).Encode(item)
+		default:
+			t.Fatalf("unexpected GitHub request: %s?%s", request.URL.Path, request.URL.RawQuery)
+		}
+	}))
+	defer server.Close()
+	target, _ := url.Parse(server.URL)
+	client := &http.Client{Transport: &rewriteTransport{target: target}}
+	executor := NewGitHubExecutor(db, client, "", func() time.Time { return now })
+	runner := NewRunner(db, func() time.Time { return now })
+	candidates := 12
+	err := storage.WithTx(ctx, db, func(tx *sql.Tx) error {
+		_, updateErr := UpdateSourceConfig(ctx, tx, GitHub, 1, SourceConfigPatch{CandidatesPerKeyword: &candidates}, false, now)
+		return updateErr
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	first := createQueuedRun(t, db, GitHub, now)
+	if err = runner.Run(ctx, first.ID, executor); err != nil {
+		t.Fatal(err)
+	}
+	firstResult, err := GetRun(ctx, db, first.ID)
+	if err != nil || firstResult.Status != StatusSucceeded {
+		t.Fatalf("first run: %+v err=%v", firstResult, err)
+	}
+	wantFirst := []string{"/repos/acme/r500/stargazers/history", "/repos/acme/r300/stargazers/history", "/repos/acme/r50/stargazers/history", "/repos/acme/r40/stargazers/history", "/repos/acme/r20/stargazers/history"}
+	if strings.Join(historyPaths, ",") != strings.Join(wantFirst, ",") {
+		t.Fatalf("first history requests=%v want=%v", historyPaths, wantFirst)
+	}
+
+	var trackedID string
+	if err = db.QueryRow(`SELECT id FROM source_records WHERE source='GITHUB' AND external_id='101'`).Scan(&trackedID); err != nil {
+		t.Fatal(err)
+	}
+	tracked := []string{trackedID}
+	err = storage.WithTx(ctx, db, func(tx *sql.Tx) error {
+		_, updateErr := UpdateSourceConfig(ctx, tx, GitHub, 2, SourceConfigPatch{TrackedSourceRecordIDs: &tracked}, false, now)
+		return updateErr
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	historyPaths = nil
+	now = now.Add(time.Hour)
+	second := createQueuedRun(t, db, GitHub, now)
+	if err = runner.Run(ctx, second.ID, executor); err != nil {
+		t.Fatal(err)
+	}
+	// 跟踪仓库先占名额；剩余名额只给尚无日级历史的候选（r10）。
+	wantSecond := []string{"/repos/acme/r500/stargazers/history", "/repos/acme/r10/stargazers/history"}
+	if strings.Join(historyPaths, ",") != strings.Join(wantSecond, ",") {
+		t.Fatalf("second history requests=%v want=%v", historyPaths, wantSecond)
 	}
 }
 

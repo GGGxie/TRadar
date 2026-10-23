@@ -181,6 +181,15 @@ export function ProjectList() {
           </div>
         ) : data?.data.length ? (
           <>
+            {data.data.every(({ trend }) => trend.score == null) && (
+              <p className="radar-hint" role="note">
+                <span>
+                  本页项目暂按当前关注度排列。增速需要同一项目相隔约 24
+                  小时的两次观测，可以明天再采集一次，或
+                </span>
+                <a href="/settings">开启定时采集</a>
+              </p>
+            )}
             <div className="project-table">
               <div className="table-head">
                 <span>项目 / 需求</span>
@@ -214,6 +223,11 @@ export function ProjectList() {
                         </span>
                       ),
                     )}
+                    {(trend.attention?.sourceWeeks ?? []).map((week) => (
+                      <small key={week.sourceRecordId}>
+                        来源本周 +{week.total}
+                      </small>
+                    ))}
                     {trend.score == null ? (
                       <small>
                         {trend.attention?.metrics.length
@@ -268,21 +282,26 @@ export function ProjectList() {
             <h3>
               {query || category || source
                 ? "没有匹配的项目"
-                : "给好奇心一个起点"}
+                : "先采集一次，看看最近受关注的项目"}
             </h3>
             <p>
               {query || category || source
                 ? "换一个关键词或方向，继续寻找。"
-                : "先记录一个项目，再逐步了解它的需求、技术和商业逻辑。"}
+                : "在信息源设置里点「立即采集」，GitHub 和 Hacker News 无需凭据即可使用。也可以手动记录一个你已经感兴趣的项目。"}
             </p>
             {!query && !category && !source && (
-              <button
-                className="secondary"
-                onClick={() => setCreating(true)}
-                disabled={creating}
-              >
-                记录第一个项目 <span aria-hidden="true">↗</span>
-              </button>
+              <div className="empty-actions">
+                <a className="primary" href="/settings">
+                  前往信息源设置
+                </a>
+                <button
+                  className="secondary"
+                  onClick={() => setCreating(true)}
+                  disabled={creating}
+                >
+                  手动记录项目
+                </button>
+              </div>
             )}
           </div>
         )}

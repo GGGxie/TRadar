@@ -200,6 +200,40 @@ func ListSourcesByObservationAge(ctx context.Context, q Querier, source string, 
 	return items, rows.Err()
 }
 
+// SourceIDsWithBasis reports which of the given source records already have at
+// least one observation with the basis, e.g. to skip repeated history reads.
+func SourceIDsWithBasis(ctx context.Context, q Querier, ids []string, basis string) (map[string]bool, error) {
+	if basis != "CUMULATIVE" && basis != "SOURCE_DAILY" {
+		return nil, fault.Field("basis", "未知观测口径")
+	}
+	found := make(map[string]bool, len(ids))
+	if len(ids) == 0 {
+		return found, nil
+	}
+	if len(ids) > 500 {
+		return nil, fault.Field("ids", "来源数量过多")
+	}
+	placeholders := strings.TrimSuffix(strings.Repeat("?,", len(ids)), ",")
+	args := make([]any, 0, len(ids)+1)
+	args = append(args, basis)
+	for _, id := range ids {
+		args = append(args, id)
+	}
+	rows, err := q.QueryContext(ctx, `SELECT DISTINCT source_record_id FROM observations WHERE basis=? AND source_record_id IN (`+placeholders+`)`, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id string
+		if err = rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		found[id] = true
+	}
+	return found, rows.Err()
+}
+
 func ListSources(ctx context.Context, q Querier, projectID string, filter SourceFilter) ([]SourceRecord, int, error) {
 	if filter.Page < 1 || filter.PageSize < 1 || filter.PageSize > 100 {
 		return nil, 0, fault.Field("page", "分页参数无效")

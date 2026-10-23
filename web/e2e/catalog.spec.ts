@@ -12,7 +12,12 @@ test("create, read, edit and reload a project with no unexpected dialog", async 
   });
   page.on("pageerror", (error) => errors.push(error.message));
   await page.goto("/radar");
-  await expect(page.getByText("给好奇心一个起点")).toBeVisible();
+  await expect(
+    page.getByText("先采集一次，看看最近受关注的项目"),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: "前往信息源设置" }),
+  ).toHaveAttribute("href", "/settings");
   await page.getByRole("button", { name: "记录项目", exact: true }).click();
   await page.getByLabel("项目名称", { exact: true }).fill("Edge Signal");
   await page

@@ -117,5 +117,98 @@ describe("ProjectList", () => {
     const manual = screen.getByText("人工项目").closest("a")!;
     expect(within(manual).getByText("暂无来源观测")).toBeTruthy();
     expect(screen.getByText("当前关注 / 趋势")).toBeTruthy();
+    // 本页全部未评分：说明增速如何产生，并指向信息源设置。
+    const hint = screen.getByRole("note");
+    expect(hint.textContent).toContain(
+      "增速需要同一项目相隔约 24 小时的两次观测",
+    );
+    expect(
+      within(hint)
+        .getByRole("link", { name: "开启定时采集" })
+        .getAttribute("href"),
+    ).toBe("/settings");
+  });
+
+  it("guides an empty workspace to collect from sources first", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({
+              data: [],
+              pagination: {
+                page: 1,
+                pageSize: 20,
+                totalItems: 0,
+                totalPages: 0,
+              },
+            }),
+          ),
+      ),
+    );
+    render(<ProjectList />);
+    expect(
+      await screen.findByText("先采集一次，看看最近受关注的项目"),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("link", { name: "前往信息源设置" }).getAttribute("href"),
+    ).toBe("/settings");
+    expect(screen.getByRole("button", { name: "手动记录项目" })).toBeTruthy();
+  });
+
+  it("shows this week's source stars next to the cumulative total", async () => {
+    const item = radarItem(
+      "ponytail",
+      "DietrichGebert/ponytail",
+      {
+        index: 1.3,
+        metrics: [
+          {
+            sourceRecordId: "gh",
+            source: "GITHUB",
+            metric: "STARS",
+            value: 173610,
+            observedAt: "2026-10-23T02:21:43.000000000Z",
+            observationId: "o1",
+          },
+        ],
+        sourceWeeks: [
+          {
+            sourceRecordId: "gh",
+            source: "GITHUB",
+            metric: "STARS",
+            weekStart: "2026-10-18T00:00:00.000000000Z",
+            timeZone: "UNSPECIFIED",
+            days: [890, 1129, 1939, 1933, 1552, 0, 0],
+            total: 7443,
+            observedAt: "2026-10-23T02:21:43.000000000Z",
+          },
+        ],
+      },
+      ["GITHUB"],
+    );
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({
+              data: [item],
+              pagination: {
+                page: 1,
+                pageSize: 20,
+                totalItems: 1,
+                totalPages: 1,
+              },
+            }),
+          ),
+      ),
+    );
+    render(<ProjectList />);
+    const row = (await screen.findByText("DietrichGebert/ponytail")).closest(
+      "a",
+    )!;
+    expect(within(row).getByText("来源本周 +7443")).toBeTruthy();
   });
 });
