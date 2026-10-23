@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"regexp"
 	"strings"
+	"time"
 )
 
 // 与界面 researchDecisionLabels 一致；未知值原样输出。
@@ -29,6 +30,19 @@ var coverageLabels = map[string]string{
 	"AVAILABLE": "已有新鲜数据", "STALE": "数据超过 24 小时", "NO_DATA": "尚无数据",
 }
 
+// localMinute 把 UTC 时间戳按日报时区显示到分钟（#58）；无法解析时原样返回。
+func localMinute(value, timeZone string) string {
+	parsed, err := time.Parse(time.RFC3339Nano, value)
+	if err != nil {
+		return value
+	}
+	location, err := time.LoadLocation(timeZone)
+	if err != nil {
+		return value
+	}
+	return parsed.In(location).Format("2006-01-02 15:04") + "（" + timeZone + "）"
+}
+
 // RenderMarkdown renders only the immutable stored snapshot. All external text
 // is flattened and escaped so it cannot introduce headings, HTML, or links.
 func RenderMarkdown(brief DailyBrief) string {
@@ -37,8 +51,12 @@ func RenderMarkdown(brief DailyBrief) string {
 	writeField(&output, "日期", brief.Date)
 	writeField(&output, "时区", brief.TimeZone)
 	writeField(&output, "版本", fmt.Sprintf("v%d", brief.Version))
-	writeField(&output, "数据截止", brief.CutoffAt)
-	writeField(&output, "生成时间", brief.GeneratedAt)
+	cutoff := localMinute(brief.CutoffAt, brief.TimeZone)
+	if utc, err := time.Parse(time.RFC3339Nano, brief.CutoffAt); err == nil && cutoff != brief.CutoffAt {
+		cutoff = strings.TrimSuffix(cutoff, "）") + "；UTC " + utc.UTC().Format(time.RFC3339) + "）"
+	}
+	writeField(&output, "数据截止", cutoff)
+	writeField(&output, "生成时间", localMinute(brief.GeneratedAt, brief.TimeZone))
 	writeField(&output, "选择规则", brief.SelectionVersion)
 	writeField(&output, "趋势算法", brief.RankingVersion)
 
@@ -50,7 +68,7 @@ func RenderMarkdown(brief DailyBrief) string {
 		}
 		line := fmt.Sprintf("- %s：%s", escapeMarkdownText(coverage.Source), escapeMarkdownText(state))
 		if coverage.LatestCollectedAt != nil {
-			line += "；最近采集 " + escapeMarkdownText(*coverage.LatestCollectedAt)
+			line += "；最近采集 " + escapeMarkdownText(localMinute(*coverage.LatestCollectedAt, brief.TimeZone))
 		}
 		output.WriteString(line + "\n")
 	}

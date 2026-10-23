@@ -330,6 +330,22 @@ function BriefSettingsForm({
   );
 }
 
+// 按日报自己的时区显示到分钟（#58）；时区无效时退回原值。
+function formatInZone(value: string, timeZone: string) {
+  try {
+    return new Intl.DateTimeFormat("zh-CN", {
+      timeZone,
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    }).format(new Date(value));
+  } catch {
+    return value;
+  }
+}
+
 // 同日重新生成只比较上一版本之后的变化（SPEC-daily-brief DB-03），在版本上写明比较基准（#49）。
 function baselineNote(brief: DailyBrief, previous?: DailyBrief) {
   if (!brief.previousBriefId)
@@ -360,7 +376,11 @@ function BriefCard({
             {brief.date} · 版本 {brief.version}
           </h2>
           <p>
-            截止 {brief.cutoffAt} · {brief.selectionVersion} /{" "}
+            截止{" "}
+            <time dateTime={brief.cutoffAt}>
+              {formatInZone(brief.cutoffAt, brief.timeZone)}
+            </time>
+            （{brief.timeZone}） · {brief.selectionVersion} /{" "}
             {brief.rankingVersion}
           </p>
         </div>

@@ -137,6 +137,42 @@ describe("BriefPage", () => {
     expect(within(original).getByText(/首份日报/)).toBeTruthy();
   });
 
+  it("shows the cutoff in each brief's own time zone", async () => {
+    // #58：不显示 UTC 原始时间戳；按版本自己的时区换算，原值放在 dateTime。
+    const pacific = {
+      ...brief,
+      id: "b-la",
+      date: "2026-10-15",
+      timeZone: "America/Los_Angeles",
+    };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: RequestInfo | URL) => {
+        const path = String(input);
+        if (path.endsWith("/brief-settings")) return json({ data: settings });
+        if (path.includes("/briefs?page="))
+          return json({
+            data: [brief, pacific],
+            pagination: { page: 1, pageSize: 20, totalItems: 2, totalPages: 1 },
+          });
+        throw new Error(`unexpected request ${path}`);
+      }),
+    );
+    render(<BriefPage />);
+    const shanghai = (
+      await screen.findByRole("heading", { name: "2026-10-16 · 版本 1" })
+    ).closest("article")!;
+    expect(shanghai.textContent).toContain("截止 10/16 08:30（Asia/Shanghai）");
+    expect(shanghai.querySelector("time")?.getAttribute("datetime")).toBe(
+      brief.cutoffAt,
+    );
+    const la = screen
+      .getByRole("heading", { name: "2026-10-15 · 版本 1" })
+      .closest("article")!;
+    expect(la.textContent).toContain("截止 10/15 17:30（America/Los_Angeles）");
+    expect(document.body.textContent).not.toContain("T00:30:00");
+  });
+
   it("downloads Markdown with the access token and the server filename", async () => {
     window.sessionStorage.setItem("tradar.accessToken", "secret-token");
     const fetcher = vi.fn((input: RequestInfo | URL) => {
