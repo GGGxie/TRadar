@@ -113,6 +113,38 @@ describe("SettingsPage", () => {
     expect(screen.getByText("需要 Product Hunt Token 才能采集")).toBeTruthy();
   });
 
+  it("hides a backoff notice once its time has passed", async () => {
+    const past = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+    const future = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+    const withBackoff = [
+      { ...sources[0], nextRetryAt: past },
+      { ...sources[1], nextRetryAt: future },
+      sources[2],
+    ];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: RequestInfo | URL) => {
+        const path = String(input);
+        if (path.endsWith("/research-preferences"))
+          return json({
+            data: {
+              revision: 1,
+              focusTopics: [],
+              dailySaveTarget: 3,
+              weeklyDeepTarget: 2,
+              monthlyPracticeTarget: 1,
+            },
+          });
+        if (path.includes("/sources?"))
+          return json({ data: withBackoff, pagination: {} });
+        return json({ data: [], pagination: {} });
+      }),
+    );
+    render(<SettingsPage />);
+    await screen.findByText("GitHub API 候选发现");
+    expect(screen.getAllByText(/来源退避至/)).toHaveLength(1);
+  });
+
   it("saves with a revision and queues one manual run", async () => {
     const calls: { path: string; options?: RequestInit }[] = [];
     const queued: IngestionRun = {
