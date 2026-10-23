@@ -49,6 +49,7 @@ type TrendResult struct {
 	Persistence      PersistenceResult  `json:"persistence"`
 	CrossSource      CrossSourceResult  `json:"crossSource"`
 	Components       ScoreComponents    `json:"components"`
+	Attention        AttentionResult    `json:"attention"`
 	Explanations     []string           `json:"explanations"`
 	Alert            *TrendAlert        `json:"alert"`
 }
@@ -78,6 +79,7 @@ func ComputeProject(project catalog.Project, records []catalog.SourceRecord, obs
 		Acceleration: AccelerationResult{Status: StatusInsufficientHistory, ObservationIDs: []string{}},
 		Persistence:  PersistenceResult{Status: StatusInsufficientHistory, TotalWindows: 7},
 		CrossSource:  crossSource(records, project.ID, asOf.UTC()), Explanations: []string{},
+		Attention: computeAttention(records, project.ID, observations, asOf.UTC()),
 	}
 	result.Components.CrossSource = 15 * float64(max(0, min(len(result.CrossSource.Platforms), 3)-1))
 
@@ -236,6 +238,19 @@ func SortProjectTrends(items []ProjectTrend) {
 		}
 		if left.Trend.Score != nil && right.Trend.Score != nil && *left.Trend.Score != *right.Trend.Score {
 			return *left.Trend.Score > *right.Trend.Score
+		}
+		// 待积累组用当前关注度辅助发现；它只影响排序，不进入 score。
+		if left.Trend.Score == nil {
+			leftIndex, rightIndex := left.Trend.Attention.Index, right.Trend.Attention.Index
+			if leftIndex != nil && rightIndex == nil {
+				return true
+			}
+			if leftIndex == nil && rightIndex != nil {
+				return false
+			}
+			if leftIndex != nil && rightIndex != nil && *leftIndex != *rightIndex {
+				return *leftIndex > *rightIndex
+			}
 		}
 		if left.Project.FirstSeenAt != right.Project.FirstSeenAt {
 			return left.Project.FirstSeenAt > right.Project.FirstSeenAt

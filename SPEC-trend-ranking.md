@@ -52,7 +52,13 @@
 4. 至少一条主信号有有效增长时 `score = round(g+c+p,1)`，否则 `score=null`，放入待积累候选组。
    返回 `isPartial=true` 指示持续性缺项；完整度不隐含真实性。
 5. 排序按“有增长评分组、score 降序、firstSeenAt 降序、projectId 升序”；
-   待积累组按 firstSeenAt 降序、projectId 升序。筛选只过滤结果，不改变公式或分母。
+   待积累组按 `attention.index` 降序（无关注度的排在后面）、firstSeenAt 降序、projectId 升序。
+   筛选只过滤结果，不改变公式或分母。
+6. 当前关注度（2026-10-23，[#32](https://github.com/GGGxie/TRadar/issues/32)）：每个平台取主指标
+   最新累计值最高的一条来源记录，列出该记录 asOf 前最新的累计值（GitHub Stars/Forks、HN Points/Comments、
+   PH Votes/Comments），按平台分列，不跨平台相加。`index = max(ln(1+主指标)/ln(1+参考规模))`，
+   参考规模为 GitHub 10000、HN 500、PH 500，保留 3 位小数且不截断上限。它只用于待积累组排序和展示，
+   不进入 score，也不显示为增长；过期值同样返回并附观测时间。
 
 异常增长提示需要至少 3 个有效累计样本、`rateNew >= 2 × max(rateOld,0)` 且达到最小日均净增
 （GitHub 100、HN 30、PH 30），数据必须新鲜；每个项目/指标/UTC 日最多显示一个当前提示。
@@ -71,6 +77,7 @@ acceleration:{status,value:number|null,observationIds[]}
 persistence:{status,positiveWindows:int|null,validWindows:int,totalWindows:7}
 crossSource:{platforms:Source[],sourceRecordIds[]}
 components:{growth:number|null,crossSource:number,persistence:number|null}
+attention:{index:number|null,metrics:{sourceRecordId,source,metric,value,observedAt,observationId}[]}
 explanations:string[], alert:{kind,threshold,observationIds[]}|null
 ```
 
@@ -102,7 +109,8 @@ HTTP 路由归属 `internal/httpapi/`。工程创建后运行 `go test -race ./i
 | TREND-05 | 3 个连续 24h 点 100→124→172：速度 24→48，加速度 24/day²；重复时刻不除零 |
 | TREND-06 | 日级新增桶和累计快照混存时只选累计；同日桶重取不会翻倍；未来观测排除 |
 | TREND-07 | 同平台多个讨论不增加平台数；三个平台的来源 ID 完整返回；人工摘录不计平台加分 |
-| TREND-08 | 固定输入排序稳定；不同筛选不改变项目评分；相同分数有确定并列顺序 |
+| TREND-08 | 固定输入排序稳定；不同筛选不改变项目评分；相同分数有确定并列顺序；待积累组按当前关注度、再按 firstSeenAt |
+| TREND-11 | 单快照时 attention 列出各平台最新累计值；未来观测排除；多平台不相加；无观测时 index=null、metrics=[] |
 | TREND-09 | 持续性少于 4 个有效日窗为 null/isPartial；断采不被补零，负增长日不算正向 |
 | TREND-10 | 普通关注量高但无增速样本不触发告警；满足双倍增长、绝对阈值和三样本后才提示 |
 

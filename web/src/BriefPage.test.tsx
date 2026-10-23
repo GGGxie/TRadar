@@ -67,6 +67,7 @@ const brief: DailyBrief = {
           totalWindows: 7,
         },
         crossSource: { platforms: [], sourceRecordIds: [] },
+        explanations: [],
         alert: null,
       },
       analysisId: null,

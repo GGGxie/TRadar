@@ -555,3 +555,71 @@ func TestRadarHTTPValidatesWindowAndAsOf(t *testing.T) {
 		t.Fatalf("missing trend: %d %s", missing.Code, missing.Body)
 	}
 }
+
+func TestRadarHTTPOrdersAccumulatingProjectsByCurrentAttention(t *testing.T) {
+	handler, db := testServerWithDB(t)
+	ctx := context.Background()
+	now := time.Date(2026, 10, 14, 12, 0, 0, 0, time.UTC)
+	seed := func(name string, value int64, firstSeen time.Time) {
+		t.Helper()
+		err := storage.WithTx(ctx, db, func(tx *sql.Tx) error {
+			project, _, err := catalog.CreateProject(ctx, tx, catalog.CreateProjectInput{Name: name, CanonicalURL: "https://github.com/acme/" + name}, firstSeen)
+			if err != nil {
+				return err
+			}
+			source, _, err := catalog.UpsertSource(ctx, tx, catalog.UpsertSourceInput{
+				ProjectID: project.ID, Source: "GITHUB", ExternalID: "repo:" + name, RecordType: "PROJECT",
+				URL: "https://api.github.com/repos/acme/" + name, Title: "acme/" + name, FetchedAt: now,
+			})
+			if err != nil {
+				return err
+			}
+			_, err = catalog.AppendObservations(ctx, tx, "run-attention", source.ID, []catalog.ObservationInput{
+				{Metric: "STARS", Basis: "CUMULATIVE", Value: value, ObservedAt: now, FetchedAt: now},
+			})
+			return err
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	seed("quiet-newest", 0, now.Add(-time.Minute))
+	seed("popular-oldest", 173000, now.Add(-time.Hour))
+	seed("middle", 400, now.Add(-30*time.Minute))
+
+	response := call(handler, http.MethodGet, "/api/v1/radar?asOf="+now.Add(time.Minute).Format(time.RFC3339Nano), "", "", "")
+	if response.Code != http.StatusOK {
+		t.Fatalf("radar: %d %s", response.Code, response.Body)
+	}
+	var body struct {
+		Data []struct {
+			Project struct {
+				Name string `json:"name"`
+			} `json:"project"`
+			Trend struct {
+				Score     *float64 `json:"score"`
+				Attention struct {
+					Index   *float64 `json:"index"`
+					Metrics []struct {
+						Source string `json:"source"`
+						Metric string `json:"metric"`
+						Value  int64  `json:"value"`
+					} `json:"metrics"`
+				} `json:"attention"`
+			} `json:"trend"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"popular-oldest", "middle", "quiet-newest"}
+	for index, item := range body.Data {
+		if item.Project.Name != want[index] || item.Trend.Score != nil {
+			t.Fatalf("order[%d]=%s score=%v want=%s", index, item.Project.Name, item.Trend.Score, want[index])
+		}
+	}
+	top := body.Data[0].Trend.Attention
+	if top.Index == nil || len(top.Metrics) != 1 || top.Metrics[0].Source != "GITHUB" || top.Metrics[0].Metric != "STARS" || top.Metrics[0].Value != 173000 {
+		t.Fatalf("attention=%+v", top)
+	}
+}
