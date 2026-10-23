@@ -113,7 +113,7 @@ func TestProviderLimitCanTightenLocalBudget(t *testing.T) {
 	ctx := context.Background()
 	now := time.Now().UTC()
 	run := createQueuedRun(t, db, GitHub, now)
-	if err := RecordProviderBudget(ctx, db, GitHub, 0, now.Add(20*time.Minute), now); err != nil {
+	if err := RecordProviderBudget(ctx, db, GitHub, "core", 0, now.Add(20*time.Minute), now); err != nil {
 		t.Fatal(err)
 	}
 	_, err := ClaimRequestBudget(ctx, db, run.ID, GitHub, RequestGeneral, BudgetPolicy{HourlyLimit: 60, SearchMinuteLimit: 10}, now.Add(time.Minute))
@@ -138,7 +138,7 @@ func TestProviderLimitCannotRaiseStricterLocalBudget(t *testing.T) {
 			t.Fatalf("local claim %d: %v", index+1, err)
 		}
 	}
-	if err := RecordProviderBudget(ctx, db, GitHub, 50, now.Add(2*time.Hour), now); err != nil {
+	if err := RecordProviderBudget(ctx, db, GitHub, "core", 50, now.Add(2*time.Hour), now); err != nil {
 		t.Fatal(err)
 	}
 	state, err := ClaimRequestBudget(ctx, db, run.ID, GitHub, RequestGeneral, policy, now.Add(time.Minute))
