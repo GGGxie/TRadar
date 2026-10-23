@@ -38,7 +38,7 @@ func (s *Server) projectEvidence(w http.ResponseWriter, r *http.Request) {
 			writeError(w, r, err)
 			return
 		}
-		filter := catalog.EvidenceFilter{Page: page, PageSize: size}
+		filter := catalog.EvidenceFilter{Page: page, PageSize: size, CurrentOnly: r.URL.Query().Get("current") == "true"}
 		if raw := r.URL.Query().Get("asOf"); raw != "" {
 			asOf, err := time.Parse(time.RFC3339Nano, raw)
 			if err != nil {

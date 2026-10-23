@@ -93,7 +93,7 @@ export function ExperimentPanel({
   useEffect(() => {
     const controller = new AbortController();
     request<Page<Evidence>>(
-      `/projects/${encodeURIComponent(project.id)}/evidence?page=1&pageSize=100`,
+      `/projects/${encodeURIComponent(project.id)}/evidence?page=1&pageSize=100&current=true`,
       { signal: controller.signal },
     )
       .then((response) => {

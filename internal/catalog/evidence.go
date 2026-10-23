@@ -27,6 +27,8 @@ type Evidence struct {
 	IsPublic       bool     `json:"isPublic"`
 	ObservationIDs []string `json:"observationIds"`
 	SupersedesID   *string  `json:"supersedesId"`
+	// SupersededBy 是读取时计算的最新替代版本 ID，不入库；冻结快照的内容比较不使用它。
+	SupersededBy *string `json:"supersededBy,omitempty"`
 }
 
 type CreateEvidenceInput struct {
@@ -45,8 +47,10 @@ type CreateEvidenceInput struct {
 type EvidenceFilter struct {
 	AsOf       *time.Time
 	PublicOnly bool
-	Page       int
-	PageSize   int
+	// CurrentOnly 排除在 AsOf（缺省为现在）之前已被新版本替代的证据（#46）。
+	CurrentOnly bool
+	Page        int
+	PageSize    int
 }
 
 const evidenceColumns = "id,project_id,source_record_id,url,title,excerpt,kind,publisher,published_at,collected_at,is_public,supersedes_id"
@@ -98,6 +102,16 @@ func CreateEvidence(ctx context.Context, q *sql.Tx, projectID string, input Crea
 	}
 	if err = validateOwnedReference(ctx, q, "evidence", input.SupersedesID, projectID, "supersedesId"); err != nil {
 		return Evidence{}, err
+	}
+	if input.SupersedesID != nil {
+		// 版本是一条直线：已有新版本的证据不能再次被修订，避免同一份材料分叉出多个「当前版本」。
+		var superseded bool
+		if err = q.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM evidence WHERE supersedes_id=?)`, *input.SupersedesID).Scan(&superseded); err != nil {
+			return Evidence{}, err
+		}
+		if superseded {
+			return Evidence{}, fault.Field("supersedesId", "这条证据已有更新版本，请修订最新版本")
+		}
 	}
 	if len(input.ObservationIDs) > 100 {
 		return Evidence{}, fault.Field("observationIds", "一次最多引用 100 条观测")
@@ -164,13 +178,22 @@ func ListEvidence(ctx context.Context, q Querier, projectID string, filter Evide
 	if filter.PublicOnly {
 		where += " AND is_public=1"
 	}
+	if filter.CurrentOnly {
+		where += " AND NOT EXISTS (SELECT 1 FROM evidence newer WHERE newer.supersedes_id=evidence.id"
+		if filter.AsOf != nil {
+			where += " AND newer.collected_at<=?"
+			args = append(args, Timestamp(*filter.AsOf))
+		}
+		where += ")"
+	}
 	var total int
 	if err := q.QueryRowContext(ctx, "SELECT count(*) FROM evidence"+where, args...).Scan(&total); err != nil {
 		return nil, 0, err
 	}
 	args = append(args, filter.PageSize, (filter.Page-1)*filter.PageSize)
 	rows, err := q.QueryContext(ctx, `SELECT `+evidenceColumns+`,
-		COALESCE((SELECT json_group_array(observation_id) FROM evidence_observations eo WHERE eo.evidence_id=evidence.id),'[]')
+		COALESCE((SELECT json_group_array(observation_id) FROM evidence_observations eo WHERE eo.evidence_id=evidence.id),'[]'),
+		(SELECT newer.id FROM evidence newer WHERE newer.supersedes_id=evidence.id ORDER BY newer.collected_at DESC,newer.id ASC LIMIT 1)
 		FROM evidence`+where+` ORDER BY collected_at DESC,id ASC LIMIT ? OFFSET ?`, args...)
 	if err != nil {
 		return nil, 0, err
@@ -189,7 +212,8 @@ func ListEvidence(ctx context.Context, q Querier, projectID string, filter Evide
 
 func GetEvidence(ctx context.Context, q Querier, id string) (Evidence, error) {
 	item, err := scanEvidence(q.QueryRowContext(ctx, `SELECT `+evidenceColumns+`,
-		COALESCE((SELECT json_group_array(observation_id) FROM evidence_observations eo WHERE eo.evidence_id=evidence.id),'[]')
+		COALESCE((SELECT json_group_array(observation_id) FROM evidence_observations eo WHERE eo.evidence_id=evidence.id),'[]'),
+		(SELECT newer.id FROM evidence newer WHERE newer.supersedes_id=evidence.id ORDER BY newer.collected_at DESC,newer.id ASC LIMIT 1)
 		FROM evidence WHERE id=?`, id))
 	if errors.Is(err, sql.ErrNoRows) {
 		return Evidence{}, fault.Missing("证据")
@@ -202,7 +226,7 @@ func scanEvidence(row scanner) (Evidence, error) {
 	var observationJSON string
 	err := row.Scan(&item.ID, &item.ProjectID, &item.SourceRecordID, &item.URL, &item.Title,
 		&item.Excerpt, &item.Kind, &item.Publisher, &item.PublishedAt, &item.CollectedAt,
-		&item.IsPublic, &item.SupersedesID, &observationJSON)
+		&item.IsPublic, &item.SupersedesID, &observationJSON, &item.SupersededBy)
 	if err != nil {
 		return Evidence{}, err
 	}

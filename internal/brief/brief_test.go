@@ -125,6 +125,37 @@ func TestAcceptedBriefInputStaysFrozenAcrossLaterEvidenceAndResearchChanges(t *t
 	}
 }
 
+func TestBriefFreezesOnlyCurrentEvidenceVersions(t *testing.T) {
+	db := briefDB(t)
+	ctx := context.Background()
+	now := time.Date(2026, 10, 16, 0, 30, 0, 0, time.UTC)
+	project := createBriefProject(t, db, "versioned", "AI_AGENT", now.Add(-time.Hour))
+	original := createBriefEvidence(t, db, project.ID, "旧版", "旧版本正文", "PUBLIC_EXCERPT", now.Add(-50*time.Minute))
+	var revised catalog.Evidence
+	if err := storage.WithTx(ctx, db, func(tx *sql.Tx) error {
+		var err error
+		revised, err = catalog.CreateEvidence(ctx, tx, project.ID, catalog.CreateEvidenceInput{
+			URL: "https://example.com/revised", Title: "新版", Excerpt: "修订后的正文", Kind: "PUBLIC_EXCERPT", SupersedesID: &original.ID,
+		}, now.Add(-40*time.Minute))
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+	run := acceptRun(t, db, CreateInput{Date: "2026-10-16", TimeZone: "Asia/Shanghai"}, now)
+	processed, err := ProcessRun(ctx, db, run.ID, now.Add(time.Second))
+	if err != nil || processed.BriefID == nil {
+		t.Fatalf("process=%+v err=%v", processed, err)
+	}
+	brief, err := GetBrief(ctx, db, *processed.BriefID)
+	if err != nil || len(brief.Items) != 1 {
+		t.Fatalf("brief=%+v err=%v", brief, err)
+	}
+	item := brief.Items[0]
+	if len(item.EvidenceIDs) != 1 || item.EvidenceIDs[0] != revised.ID || item.FactSummary != "修订后的正文" {
+		t.Fatalf("superseded evidence frozen: ids=%v fact=%q", item.EvidenceIDs, item.FactSummary)
+	}
+}
+
 func TestAcceptRunRejectsNonTodayAndInvalidTimeZone(t *testing.T) {
 	db := briefDB(t)
 	ctx := context.Background()
