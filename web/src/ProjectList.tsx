@@ -1,6 +1,8 @@
 import { useEffect, useState, type FormEvent } from "react";
 import {
+  attentionBadge,
   categories,
+  primaryAttention,
   projectHost,
   request,
   type Page,
@@ -183,7 +185,7 @@ export function ProjectList() {
               <div className="table-head">
                 <span>项目 / 需求</span>
                 <span>方向</span>
-                <span>趋势 / 证据</span>
+                <span>当前关注 / 趋势</span>
                 <span />
               </div>
               {data.data.map(({ project, trend }) => (
@@ -205,8 +207,19 @@ export function ProjectList() {
                   </div>
                   <span className="tag">{categories[project.category]}</span>
                   <span className="trend-summary">
+                    {primaryAttention(trend.attention?.metrics ?? []).map(
+                      (metric) => (
+                        <span className="attention-badge" key={metric.source}>
+                          {attentionBadge(metric)}
+                        </span>
+                      ),
+                    )}
                     {trend.score == null ? (
-                      "待积累"
+                      <small>
+                        {trend.attention?.metrics.length
+                          ? "增速待积累"
+                          : "暂无来源观测"}
+                      </small>
                     ) : (
                       <>
                         <strong>{trend.score.toFixed(1)}</strong>

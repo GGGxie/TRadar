@@ -1,0 +1,121 @@
+import { cleanup, render, screen, within } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { ProjectList } from "./ProjectList";
+import type { ProjectTrend } from "./api";
+
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+});
+
+function radarItem(
+  id: string,
+  name: string,
+  attention: ProjectTrend["trend"]["attention"],
+  platforms: ProjectTrend["trend"]["crossSource"]["platforms"],
+): ProjectTrend {
+  return {
+    project: {
+      id,
+      name,
+      canonicalUrl: `https://github.com/acme/${id}`,
+      summary: `${name} 的介绍`,
+      category: "OTHER",
+      firstSeenAt: "2026-10-23T02:21:43.000000000Z",
+      lastSeenAt: "2026-10-23T02:21:43.000000000Z",
+      createdAt: "2026-10-23T02:21:43.000000000Z",
+      updatedAt: "2026-10-23T02:21:43.000000000Z",
+      revision: 1,
+    },
+    trend: {
+      projectId: id,
+      asOf: "2026-10-23T02:30:00.000000000Z",
+      algorithmVersion: "trend-v1",
+      status: "INSUFFICIENT_HISTORY",
+      score: null,
+      isPartial: true,
+      primarySignal: null,
+      growth: {
+        status: "INSUFFICIENT_HISTORY",
+        from: null,
+        to: null,
+        durationHours: null,
+        delta: null,
+        ratePerDay: null,
+        growthRatio: null,
+        observationIds: [],
+      },
+      persistence: {
+        status: "INSUFFICIENT_HISTORY",
+        positiveWindows: null,
+        validWindows: 0,
+        totalWindows: 7,
+      },
+      crossSource: { platforms, sourceRecordIds: [] },
+      attention,
+      explanations: ["尚无新鲜且窗口完整的累计观测，暂不评分。"],
+      alert: null,
+    },
+  };
+}
+
+describe("ProjectList", () => {
+  it("shows per-platform current attention separately from growth", async () => {
+    const items = [
+      radarItem(
+        "ponytail",
+        "DietrichGebert/ponytail",
+        {
+          index: 1.3,
+          metrics: [
+            {
+              sourceRecordId: "gh",
+              source: "GITHUB",
+              metric: "STARS",
+              value: 173610,
+              observedAt: "2026-10-23T02:21:43.000000000Z",
+              observationId: "o1",
+            },
+            {
+              sourceRecordId: "hn",
+              source: "HACKER_NEWS",
+              metric: "POINTS",
+              value: 412,
+              observedAt: "2026-10-23T02:21:53.000000000Z",
+              observationId: "o2",
+            },
+          ],
+        },
+        ["GITHUB", "HACKER_NEWS"],
+      ),
+      radarItem("manual", "人工项目", { index: null, metrics: [] }, []),
+    ];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({
+              data: items,
+              pagination: {
+                page: 1,
+                pageSize: 20,
+                totalItems: 2,
+                totalPages: 1,
+              },
+            }),
+          ),
+      ),
+    );
+    render(<ProjectList />);
+    const popular = (
+      await screen.findByText("DietrichGebert/ponytail")
+    ).closest("a")!;
+    expect(within(popular).getByText("GitHub ★ 17.4 万")).toBeTruthy();
+    expect(within(popular).getByText("HN 412 分")).toBeTruthy();
+    expect(within(popular).getByText("增速待积累")).toBeTruthy();
+    const manual = screen.getByText("人工项目").closest("a")!;
+    expect(within(manual).getByText("暂无来源观测")).toBeTruthy();
+    expect(screen.getByText("当前关注 / 趋势")).toBeTruthy();
+  });
+});
