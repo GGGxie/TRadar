@@ -81,6 +81,11 @@ func TestBriefItemCarriesSummaryAndFrozenSourceFactsWithoutEvidence(t *testing.T
 	if built.FactSummary != want {
 		t.Fatalf("fact=%q\nwant=%q", built.FactSummary, want)
 	}
+	// 派生的来源描述与简介相同：事实行不重复简介，改用来源观测。
+	item.Evidence = []catalog.Evidence{{ID: "desc", ProjectID: "ponytail", Kind: "OFFICIAL_DESCRIPTION", Excerpt: " Makes your AI agent lazy. ", ObservationIDs: []string{}}}
+	if repeated := makeBriefItem(item, []string{"FIRST_COVERAGE"}); repeated.FactSummary != want || len(repeated.EvidenceIDs) != 1 {
+		t.Fatalf("repeated summary fact=%q evidence=%v", repeated.FactSummary, repeated.EvidenceIDs)
+	}
 	empty := makeBriefItem(candidate("bare", "2026-10-16T01:00:00.000000000Z", nil, nil, nil), []string{"FIRST_COVERAGE"})
 	if empty.FactSummary != "尚无可引用事实证据。" || empty.Summary != "" {
 		t.Fatalf("bare item=%+v", empty)

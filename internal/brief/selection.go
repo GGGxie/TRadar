@@ -128,7 +128,7 @@ func makeBriefItem(candidate CandidateSnapshot, reasons []string) BriefItem {
 		ProjectID: candidate.Project.ID, ProjectRevision: candidate.Project.Revision,
 		Title: candidate.Project.Name, URL: candidate.Project.CanonicalURL,
 		Summary: clipText(strings.TrimSpace(candidate.Project.Summary), 500),
-		Reasons: append([]string{}, reasons...), FactSummary: summarizeFact(evidence, candidate.Trend.Attention),
+		Reasons: append([]string{}, reasons...), FactSummary: summarizeFact(factEvidence(evidence, candidate.Project.Summary), candidate.Trend.Attention),
 		HypothesisSummary: firstHypothesis(candidate.Analysis),
 		EvidenceIDs:       evidenceIDs, EvidenceSnapshots: evidence,
 		TrendSnapshot: candidate.Trend, AnalysisSnapshot: cloneAnalysis(candidate.Analysis),
@@ -172,6 +172,22 @@ func summarizeFact(evidence []catalog.Evidence, attention trends.AttentionResult
 		prefix = "第三方估算："
 	}
 	return prefix + strings.TrimSpace(item.Excerpt)
+}
+
+// factEvidence 去掉正文与项目简介相同的证据（通常是派生的来源描述），
+// 避免日报「简介」和「事实」两行重复；证据本身仍完整冻结在 evidenceSnapshots。
+func factEvidence(evidence []catalog.Evidence, summary string) []catalog.Evidence {
+	summary = normalizeText(summary)
+	if summary == "" {
+		return evidence
+	}
+	kept := make([]catalog.Evidence, 0, len(evidence))
+	for _, item := range evidence {
+		if normalizeText(item.Excerpt) != summary {
+			kept = append(kept, item)
+		}
+	}
+	return kept
 }
 
 func summarizeAttention(attention trends.AttentionResult) string {

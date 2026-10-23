@@ -37,7 +37,7 @@ func TestMarkdownUsesOnlyFrozenDataAndEscapesUntrustedStructure(t *testing.T) {
 			t.Fatalf("unsafe or private content %q leaked:\n%s", forbidden, first)
 		}
 	}
-	for _, required := range []string{"TRadar 日报", "2026-10-16", "创始人自述", "FIRST_COVERAGE", "https://example.com/fact?q=1%29", "- **简介**：帮助开发者 \\*追踪\\* \\# 变化"} {
+	for _, required := range []string{"TRadar 日报", "2026-10-16", "创始人自述", "FIRST_COVERAGE", "https://example.com/fact?q=1%29", "- **简介**：帮助开发者 \\*追踪\\* \\# 变化", "- **个人判断**：继续观察"} {
 		if !strings.Contains(first, required) {
 			t.Fatalf("missing %q:\n%s", required, first)
 		}

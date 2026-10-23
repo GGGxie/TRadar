@@ -441,7 +441,7 @@ export function AnalysisPanel({
             </div>
           ) : (
             <p className="muted">
-              当前没有证据；仍可生成明确标注未知项的模板。
+              当前没有证据；仍可生成明确标注未知项的模板。采集来的项目可在上方「来源与当前关注」点「保存为证据」后再勾选。
             </p>
           )}
           {actionError && (

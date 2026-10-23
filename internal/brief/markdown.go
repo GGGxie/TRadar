@@ -8,6 +8,12 @@ import (
 	"strings"
 )
 
+// 与界面 researchDecisionLabels 一致；未知值原样输出。
+var decisionLabels = map[string]string{
+	"UNDECIDED": "尚未决定", "OBSERVE": "继续观察", "LEARN": "值得学习",
+	"USE": "准备使用", "VALIDATE": "需要验证", "PASS": "暂时放弃",
+}
+
 var reasonLabels = map[string]string{
 	"NEW_DISCOVERY":   "新发现",
 	"FIRST_COVERAGE":  "首次覆盖",
@@ -78,7 +84,11 @@ func RenderMarkdown(brief DailyBrief) string {
 			writeField(&output, "已存推测", *item.HypothesisSummary)
 		}
 		if item.PersonalDecision != nil {
-			writeField(&output, "个人判断", *item.PersonalDecision)
+			decision := *item.PersonalDecision
+			if label, ok := decisionLabels[decision]; ok {
+				decision = label
+			}
+			writeField(&output, "个人判断", decision)
 		}
 		if item.NextAction != nil {
 			writeField(&output, "下一步", *item.NextAction)

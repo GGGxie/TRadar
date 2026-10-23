@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
+  deriveSourceEvidence,
   formatDate,
   getSource,
   metricLabels,
@@ -19,7 +20,16 @@ const weekdays = ["日", "一", "二", "三", "四", "五", "六"];
 
 // 展示自动来源的事实层：来源记录、各指标最新累计值、来源自然周日桶和趋势状态。
 // 当前关注度、来源日级新增与滚动增速分列，不把累计量写成增长。
-export function SignalPanel({ projectId }: { projectId: string }) {
+export function SignalPanel({
+  projectId,
+  onEvidenceSaved,
+}: {
+  projectId: string;
+  onEvidenceSaved?: () => void;
+}) {
+  const [deriving, setDeriving] = useState(false);
+  const [deriveMessage, setDeriveMessage] = useState("");
+  const deriveKey = useRef(crypto.randomUUID());
   const [trend, setTrend] = useState<TrendResult | null>(null);
   const [sources, setSources] = useState<SourceRecord[] | null>(null);
   const [github, setGitHub] = useState<SourceView | null>(null);
@@ -54,6 +64,28 @@ export function SignalPanel({ projectId }: { projectId: string }) {
       });
     return () => controller.abort();
   }, [projectId]);
+
+  // 来源记录会被采集更新；分析需要引用冻结后的证据副本。
+  async function saveAsEvidence() {
+    setDeriving(true);
+    setDeriveMessage("");
+    try {
+      const result = await deriveSourceEvidence(projectId, deriveKey.current);
+      deriveKey.current = crypto.randomUUID();
+      setDeriveMessage(
+        result.data.created > 0
+          ? `已保存 ${result.data.created} 条来源证据，可在分析时勾选引用。`
+          : "来源证据已是最新，没有新增。",
+      );
+      onEvidenceSaved?.();
+    } catch (error) {
+      setDeriveMessage(
+        error instanceof Error ? error.message : "保存失败，请稍后重试。",
+      );
+    } finally {
+      setDeriving(false);
+    }
+  }
 
   async function toggleTracking(recordId: string) {
     if (!github) return;
@@ -188,6 +220,22 @@ export function SignalPanel({ projectId }: { projectId: string }) {
             <p role="alert" className="error">
               {trackError}
             </p>
+          )}
+          {sources.length > 0 && (
+            <div className="signal-derive">
+              <button
+                type="button"
+                className="secondary"
+                disabled={deriving}
+                onClick={saveAsEvidence}
+              >
+                {deriving ? "保存中…" : "保存为证据"}
+              </button>
+              <small className="muted">
+                把当前来源描述和最新累计指标冻结为公开证据，供规则或人工分析引用。
+              </small>
+              {deriveMessage && <p role="status">{deriveMessage}</p>}
+            </div>
           )}
           {trend.score != null && trend.growth.delta != null && (
             <p className="signal-growth">

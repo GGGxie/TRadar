@@ -102,7 +102,10 @@ export function ProjectDetails({ id }: { id: string }) {
               </div>
             </dl>
           </section>
-          <SignalPanel projectId={project.id} />
+          <SignalPanel
+            projectId={project.id}
+            onEvidenceSaved={() => setEvidenceRevision((value) => value + 1)}
+          />
           <section
             className="evidence-note"
             aria-labelledby="evidence-guidance-title"
@@ -128,6 +131,7 @@ export function ProjectDetails({ id }: { id: string }) {
           />
           <EvidencePanel
             projectId={project.id}
+            refreshKey={evidenceRevision}
             onChanged={() => setEvidenceRevision((value) => value + 1)}
           />
         </>
