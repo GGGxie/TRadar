@@ -45,6 +45,8 @@ export interface Evidence {
   isPublic: boolean;
   observationIds: string[];
   supersedesId: string | null;
+  // 已有更新版本时为新版本 ID（读取时计算）。
+  supersededBy?: string;
 }
 export interface EvidenceInput {
   url: string;

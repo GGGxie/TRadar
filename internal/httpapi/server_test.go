@@ -671,3 +671,38 @@ func TestEvidenceFromSourcesHTTPIsIdempotentAndPublic(t *testing.T) {
 		t.Fatalf("GET derive: %d", wrongMethod.Code)
 	}
 }
+
+func TestEvidenceHTTPListsCurrentVersionsAndRejectsBranching(t *testing.T) {
+	handler := testServer(t)
+	created := call(handler, http.MethodPost, "/api/v1/projects", `{"name":"版本","canonicalUrl":"https://versions-http.test"}`, "project-v", "")
+	var project struct {
+		Data struct {
+			ID string `json:"id"`
+		} `json:"data"`
+	}
+	json.Unmarshal(created.Body.Bytes(), &project)
+	path := "/api/v1/projects/" + project.Data.ID + "/evidence"
+	first := call(handler, http.MethodPost, path, `{"url":"https://versions-http.test/a","title":"说明","excerpt":"第一版","kind":"PUBLIC_EXCERPT"}`, "e1", "")
+	var original struct {
+		Data struct {
+			ID string `json:"id"`
+		} `json:"data"`
+	}
+	json.Unmarshal(first.Body.Bytes(), &original)
+	body := `{"url":"https://versions-http.test/a","title":"说明","excerpt":"第二版","kind":"PUBLIC_EXCERPT","supersedesId":"` + original.Data.ID + `"}`
+	if revised := call(handler, http.MethodPost, path, body, "e2", ""); revised.Code != http.StatusCreated {
+		t.Fatalf("revise: %d %s", revised.Code, revised.Body)
+	}
+	all := call(handler, http.MethodGet, path, "", "", "")
+	if !strings.Contains(all.Body.String(), `"totalItems":2`) || !strings.Contains(all.Body.String(), `"supersededBy":"`) {
+		t.Fatalf("all versions: %s", all.Body)
+	}
+	current := call(handler, http.MethodGet, path+"?current=true", "", "", "")
+	if !strings.Contains(current.Body.String(), `"totalItems":1`) || strings.Contains(current.Body.String(), "第一版") {
+		t.Fatalf("current versions: %s", current.Body)
+	}
+	branch := call(handler, http.MethodPost, path, strings.Replace(body, "第二版", "分叉", 1), "e3", "")
+	if branch.Code != http.StatusUnprocessableEntity || !strings.Contains(branch.Body.String(), "supersedesId") {
+		t.Fatalf("branch: %d %s", branch.Code, branch.Body)
+	}
+}

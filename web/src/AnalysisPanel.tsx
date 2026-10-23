@@ -119,7 +119,7 @@ export function AnalysisPanel({
     Promise.all([
       listAnalyses(project.id, level, controller.signal),
       request<Page<Evidence>>(
-        `/projects/${encodeURIComponent(project.id)}/evidence?page=1&pageSize=100`,
+        `/projects/${encodeURIComponent(project.id)}/evidence?page=1&pageSize=100&current=true`,
         { signal: controller.signal },
       ),
       getAnalysisCapabilities(controller.signal),

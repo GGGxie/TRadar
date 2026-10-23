@@ -293,13 +293,23 @@ export function EvidencePanel({
       ) : (
         <div className="evidence-list">
           {result.data.map((item) => (
-            <article key={item.id}>
+            <article
+              key={item.id}
+              className={item.supersededBy ? "superseded" : undefined}
+            >
               <div className="evidence-meta">
                 <span className="tag">
                   {item.kind === "METRIC_OBSERVATION"
                     ? "指标观测"
                     : evidenceKinds[item.kind]}
                 </span>
+                {item.supersededBy ? (
+                  <span className="tag version-tag">已被新版本替代</span>
+                ) : (
+                  item.supersedesId && (
+                    <span className="tag version-tag">修订版</span>
+                  )
+                )}
                 <span>{item.isPublic ? "公开" : "私密"}</span>
                 {item.publisher && <span>{item.publisher}</span>}
                 {item.publishedAt && (
@@ -313,7 +323,7 @@ export function EvidencePanel({
                 <a href={item.url} target="_blank" rel="noopener noreferrer">
                   查看原始来源 ↗
                 </a>
-                {item.kind !== "METRIC_OBSERVATION" && (
+                {item.kind !== "METRIC_OBSERVATION" && !item.supersededBy && (
                   <button
                     className="text-button"
                     onClick={() => start(item)}
