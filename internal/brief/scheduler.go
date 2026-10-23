@@ -36,6 +36,11 @@ func (scheduler *Scheduler) Tick(ctx context.Context, now time.Time) ([]Run, err
 	var run Run
 	created := false
 	err = storage.WithTx(ctx, scheduler.db, func(tx *sql.Tx) error {
+		// 目录为空时不生成「尚无数据」日报，也不占用当天名额；当天有数据后的下一次 tick 再生成。
+		var hasProjects bool
+		if err := tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM projects)`).Scan(&hasProjects); err != nil || !hasProjects {
+			return err
+		}
 		claim, err := tx.ExecContext(ctx, `INSERT INTO idempotency(scope,key,request_hash,status,body) VALUES(?,?,?,0,'null') ON CONFLICT(scope,key) DO NOTHING`, scheduleScope, key, SelectionVersion)
 		if err != nil {
 			return err
