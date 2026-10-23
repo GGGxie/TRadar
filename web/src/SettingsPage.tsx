@@ -567,6 +567,7 @@ function RunHistory({ runs }: { runs: IngestionRun[] }) {
               <span>{formatDate(run.createdAt)}</span>
               <span>
                 {run.acceptedItems} 条 · {run.observationsWritten} 项观测
+                {run.skippedItems > 0 && ` · 跳过 ${run.skippedItems} 条`}
               </span>
               {run.errors[0] && (
                 <p>

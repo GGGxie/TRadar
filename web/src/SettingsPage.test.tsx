@@ -125,6 +125,7 @@ describe("SettingsPage", () => {
       finishedAt: null,
       fetchedItems: 0,
       acceptedItems: 0,
+      skippedItems: 0,
       failedItems: 0,
       observationsWritten: 0,
       requestsMade: 0,

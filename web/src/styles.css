@@ -68,6 +68,7 @@ h1 {
   letter-spacing: -1px;
   line-height: 1.45;
   font-weight: 650;
+  /* 先用空格或 <wbr> 处换行；片段本身放不下时才在词内断开，保证窄屏不溢出。 */
   overflow-wrap: anywhere;
 }
 h2 {
@@ -648,6 +649,8 @@ textarea {
 }
 .source-form .toggle-field,
 .feed-field .toggle-field {
+  /* 榜单复选框不是 .source-form 的直接子元素，需要单独启用 flex 才有间距（#37）。 */
+  display: flex;
   flex-direction: row;
   align-items: center;
   gap: 8px;

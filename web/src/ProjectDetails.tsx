@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import {
   categories,
   formatDate,
@@ -18,6 +18,13 @@ export function ProjectDetails({ id }: { id: string }) {
   const [error, setError] = useState("");
   const [editing, setEditing] = useState(false);
   const [evidenceRevision, setEvidenceRevision] = useState(0);
+  // 从「记录项目」跳转而来且链接已存在时提示一次，并清掉地址参数。
+  const [openedExisting] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("existing") !== "1") return false;
+    window.history.replaceState(null, "", window.location.pathname);
+    return true;
+  });
   useEffect(() => {
     const controller = new AbortController();
     request<Resource<Project>>(`/projects/${encodeURIComponent(id)}`, {
@@ -51,7 +58,19 @@ export function ProjectDetails({ id }: { id: string }) {
               <p className="eyebrow">
                 PROJECT / {categories[project.category]}
               </p>
-              <h1>{project.name}</h1>
+              <h1>
+                {/* 在「/」后允许换行，避免窄屏把 owner/repo 拆在单词中间。 */}
+                {project.name.split("/").map((part, index) => (
+                  <Fragment key={index}>
+                    {index > 0 && (
+                      <>
+                        /<wbr />
+                      </>
+                    )}
+                    {part}
+                  </Fragment>
+                ))}
+              </h1>
               <a
                 href={project.canonicalUrl}
                 target="_blank"
@@ -70,6 +89,11 @@ export function ProjectDetails({ id }: { id: string }) {
               编辑信息
             </button>
           </header>
+          {openedExisting && (
+            <p className="success-message" role="status">
+              这个链接已在目录中，已为你打开现有项目；刚才填写的名称和介绍没有保存，可以在「编辑信息」里修改。
+            </p>
+          )}
           {editing && (
             <ProjectForm
               project={project}
