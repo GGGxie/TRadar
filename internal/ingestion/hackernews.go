@@ -165,6 +165,19 @@ func (e *HackerNewsExecutor) Execute(ctx context.Context, run IngestionRun, repo
 			}
 			continue
 		}
+		// 门槛只拦截新条目；分数缺失不当作 0；已入库或跟踪中的条目继续刷新以保持观测连续。
+		if item.Score != nil && *item.Score < int64(run.Config.MinPoints) {
+			_, known, findErr := catalog.FindSourceByExternalID(ctx, e.db, string(HackerNews), idString)
+			if findErr != nil {
+				return result, findErr
+			}
+			if !known {
+				if err = commitHNSkip(ctx, repository, run.ID, idString, "BELOW_MIN_POINTS"); err != nil {
+					return result, err
+				}
+				continue
+			}
+		}
 		if warningCode != "" {
 			appendRunError(&result, warningCode, "HN 外链无效，已保留讨论链接", &idString, false)
 		}

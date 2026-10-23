@@ -35,10 +35,10 @@
 
 | 来源 | 发现与观测 | 结果与限制 |
 |---|---|---|
-| GitHub | 结构化配置关键词，构造搜索查询；读取仓库 ID、URL、名称、描述、创建/更新时间、Stars/Forks。搜索结果已有当前指标时不重复请求详情 | 首次默认关键词为 `agent`、`developer tools`、`saas`，每关键词分两桶：最近 180 天创建按 Stars 降序取 5 条；最近 7 天推送更新、不限创建时间，按 updated 降序取 5 条。范围和截断必须展示；不是对整个 GitHub 排名 |
+| GitHub | 结构化配置关键词，构造搜索查询；读取仓库 ID、URL、名称、描述、创建/更新时间、Stars/Forks。搜索结果已有当前指标时不重复请求详情 | 首次默认关键词为 `agent`、`developer tools`、`saas`，每关键词分两桶：最近 180 天创建按 Stars 降序取 5 条；最近 7 天推送更新、不限创建时间，按 updated 降序取 5 条。两桶都附加 `stars:>=minStars`（默认 20，0 表示不过滤，[#34](https://github.com/GGGxie/TRadar/issues/34)）。范围和截断必须展示；不是对整个 GitHub 排名 |
 | GitHub 跟踪 | 显式 `trackedSourceRecordIds` 中已知仓库，每轮按最久未观测优先读取累计值 | 每轮最多 20 个，资源不足时轮换，保留未读记录的原时间戳，不伪装已刷新；改名按仓库数值 ID 保持身份 |
 | GitHub 日级历史 | 每轮最多尝试 5 个仓库、各读取最近一个来源自然周；先给已跟踪仓库（最久未取优先），剩余名额给本轮发现且尚无日级历史的候选，按 Stars 降序（[#33](https://github.com/GGGxie/TRadar/issues/33)）；后续轮换补齐 | 端点不可用/权限不足/字段不兼容时记录历史不可用，仍保留累计观测；不遍历 stargazer 用户列表代替历史 |
-| HN | 默认 Top/New/Show 各取前 20 个 ID，去重后最多读取 60 个 item；显式跟踪项优先占用该上限 | 只接受 story 类型；`deleted`、`dead`、`null` 分别记跳过原因；无外链仍保留 HN 讨论记录。分数、评论数、发布时间、采集时间分开 |
+| HN | 默认 Top/New/Show 各取前 20 个 ID，去重后最多读取 60 个 item；显式跟踪项优先占用该上限 | 只接受 story 类型；`deleted`、`dead`、`null` 分别记跳过原因；无外链仍保留 HN 讨论记录。分数、评论数、发布时间、采集时间分开。分数低于 `minPoints`（默认 10）的**新**故事计为跳过、不写目录也不记错误；已入库或跟踪中的故事照常刷新；分数缺失不按 0 处理 |
 | Product Hunt | 固定 GraphQL 查询近 7 天发布，单页 20、最多 3 页；读取 post ID、主页/产品外链、发布时间、投票与评论指标 | GraphQL `errors` 必须检查；同响应部分数据可独立验证导入，失败字段不能填零。截断和 complexity 配额对用户可见 |
 
 默认采集窗口在任务开始时冻结。参数改变只影响下一次任务，任务保留所用配置版本和窗口。
@@ -110,9 +110,9 @@ type RunStatus = 'QUEUED' | 'RUNNING' | 'RETRY_WAIT' | 'SUCCEEDED'
 type SourceSettings =
   | { source: 'GITHUB'; keywords: string[]; discoveryDays: number;
       candidatesPerKeyword: number; trackedSourceRecordIds: string[];
-      requestBudgetPerHour: number }
+      requestBudgetPerHour: number; minStars: number }
   | { source: 'HACKER_NEWS'; feeds: ('TOP' | 'NEW' | 'SHOW')[];
-      itemsPerFeed: number; trackedSourceRecordIds: string[] }
+      itemsPerFeed: number; trackedSourceRecordIds: string[]; minPoints: number }
   | { source: 'PRODUCT_HUNT'; discoveryDays: number; maxPages: number };
 type SourceConfig = SourceSettings & {
   isEnabled: boolean; isScheduleEnabled: boolean; intervalMinutes: number;
@@ -161,6 +161,7 @@ interface IngestionRun {
 关键词 1–5 项、每项 1–80 字符；GitHub `discoveryDays` 为 1–365、每词候选 2–30（新项目桶向上取半，近期更新桶取其余）；
 跟踪 ID 最多 100 个且必须属于所配来源。匿名预算为 1–60，有凭据最多 5,000，
 仍受平台实际限制；HN 每榜 1–50、合计 item 硬上限 60；PH 天数 1–30、页数 1–3。
+GitHub `minStars` 为 0–100,000，HN `minPoints` 为 0–1,000；此前保存、缺少这两个字段的设置读取时取默认值。
 所有配置必填字段在首次默认配置中给定，PATCH 仅改变显式字段，任何字段均不可用 null 清空。
 
 | 方法与路径（前缀 `/api/v1`） | 输入 | 成功输出与语义 |

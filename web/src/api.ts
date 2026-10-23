@@ -91,6 +91,8 @@ export interface SourceConfig {
   feeds?: string[];
   itemsPerFeed?: number;
   maxPages?: number;
+  minStars?: number;
+  minPoints?: number;
 }
 export interface SourceView {
   source: RemoteSource;
