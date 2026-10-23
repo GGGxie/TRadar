@@ -18,3 +18,11 @@
 - **TDD**：`TestGitHubSearchQuotaDoesNotBlockCoreRequests` 先失败（PARTIAL，历史未请求），实现后通过。
   第一版实现后它仍失败：搜索被限时执行器直接 `return`，连历史都不跑；改为跳出搜索循环。原有 provider 预算测试改用新签名。
 - **真实验证**：新空库采集 GitHub：search 池剩余 0、core 池 49，任务「采集成功」，11 个请求，5 个仓库写入日级历史。
+
+## #45 令牌模式下 Markdown 下载失败
+
+- **现象**：开启 `TRADAR_ACCESS_TOKEN` 后点「下载 Markdown」，浏览器保存 `markdown.json`，内容为 401 错误。
+- **根因**：下载是普通 `<a download>` 链接，浏览器导航不会附带 sessionStorage 中的 Bearer 令牌。
+- **修正**：点击时用带令牌的请求取回文件，按 `Content-Disposition` 文件名以 Blob 保存；401 时清除令牌并回到解锁界面；保留 href 作为无脚本回退。
+- **TDD**：`BriefPage.test.tsx`「downloads Markdown with the access token…」先失败，实现后 12 文件 36 测试通过。
+- **真实验证**：令牌模式实例解锁后下载得到 `tradar-brief-2026-10-23-v6.md`，正文为 Markdown。
