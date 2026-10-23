@@ -163,7 +163,12 @@ export interface TrendResult {
   };
   crossSource: { platforms: RemoteSource[]; sourceRecordIds: string[] };
   // 2026-10-23 之前冻结的日报/分析快照没有该字段。
-  attention?: { index: number | null; metrics: AttentionMetric[] };
+  attention?: {
+    index: number | null;
+    metrics: AttentionMetric[];
+    // #33 之前生成的结果没有该字段。
+    sourceWeeks?: SourceWeek[];
+  };
   explanations: string[];
   alert: { kind: string; threshold: number; observationIds: string[] } | null;
 }
@@ -174,6 +179,16 @@ export interface AttentionMetric {
   value: number;
   observedAt: string;
   observationId: string;
+}
+export interface SourceWeek {
+  sourceRecordId: string;
+  source: RemoteSource;
+  metric: string;
+  weekStart: string;
+  timeZone: string;
+  days: (number | null)[];
+  total: number;
+  observedAt: string;
 }
 export interface SourceRecord {
   id: string;
@@ -706,6 +721,9 @@ export function saveExperiment(
 }
 export function listSources(signal?: AbortSignal) {
   return request<Page<SourceView>>("/sources?page=1&pageSize=20", { signal });
+}
+export function getSource(source: RemoteSource, signal?: AbortSignal) {
+  return request<Resource<SourceView>>(`/sources/${source}`, { signal });
 }
 export function updateSource(
   source: RemoteSource,
