@@ -240,7 +240,7 @@ func writeHackerNewsStory(ctx context.Context, tx *sql.Tx, runID string, item *h
 			canonicalURL = *targetURL
 		}
 		project, _, createErr := catalog.CreateProject(ctx, tx, catalog.CreateProjectInput{
-			Name: item.Title, CanonicalURL: canonicalURL, Category: classifyCategory(item.Title),
+			Name: hackerNewsProjectName(item.Title), CanonicalURL: canonicalURL, Category: classifyCategory(item.Title),
 		}, observedAt)
 		if createErr != nil {
 			return createErr

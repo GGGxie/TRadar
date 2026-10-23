@@ -133,7 +133,7 @@ coverage 仅总结已采集资料的覆盖与新鲜度，不从未采集推断�
 | GET `/brief-runs/{id}` | 无 | `BriefRun`，含 ETag；失败可见 |
 | GET `/briefs/{id}` | 无 | `DailyBrief`；不存在 404 |
 | GET `/briefs/{id}/markdown` | 无 | 200 `text/markdown; charset=utf-8`，安全固定文件名附件 |
-| GET `/brief-settings` | 无 | `BriefSettings`；默认启用，08:30 Asia/Shanghai |
+| GET `/brief-settings` | 无 | `BriefSettings`；默认启用，08:30 Asia/Shanghai；目录为空时自动调度不生成、也不占用当天（[#37](https://github.com/GGGxie/TRadar/issues/37)），手动生成仍得到 NO_DATA |
 | PATCH `/brief-settings` | `Partial<Omit<BriefSettings,"revision">>` + If-Match | `BriefSettings`；时区 / 时间 / 范围无效 422 |
 
 同 key 重试重放原任务、原 cutoffAt 与原结果，不重新取快照；处理中并发请求 409。

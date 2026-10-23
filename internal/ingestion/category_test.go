@@ -2,6 +2,22 @@ package ingestion
 
 import "testing"
 
+func TestHackerNewsProjectNameDropsLaunchPrefixes(t *testing.T) {
+	cases := map[string]string{
+		"Show HN: Forked – Git for AI agent state": "Forked – Git for AI agent state",
+		"show hn:  Sumi.css – CSS Framework":       "Sumi.css – CSS Framework",
+		"Launch HN: Omnara (YC S25)":               "Omnara (YC S25)",
+		"Tell HN: I broke the PHP RCE embargo":     "Tell HN: I broke the PHP RCE embargo",
+		"Show HN without link":                     "Show HN without link",
+		"Show HN:":                                 "Show HN:",
+	}
+	for title, want := range cases {
+		if got := hackerNewsProjectName(title); got != want {
+			t.Errorf("hackerNewsProjectName(%q)=%q want %q", title, got, want)
+		}
+	}
+}
+
 func TestClassifyCategoryUsesWholeWordsWithAgentFirst(t *testing.T) {
 	cases := []struct {
 		name, text, want string
