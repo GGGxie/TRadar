@@ -94,5 +94,8 @@ describe("LibraryPage rhythm", () => {
     const later = screen.getByText("项目 p-later").closest("article")!;
     expect(within(later).queryByText(/已到期/)).toBeNull();
     expect(within(later).getByText(/计划时间/)).toBeTruthy();
+    // #57：有时间、无行动文字时不能再说「尚未安排下一步」。
+    expect(within(later).getByText("已定时间，尚未写具体行动。")).toBeTruthy();
+    expect(within(later).queryByText("尚未安排下一步。")).toBeNull();
   });
 });

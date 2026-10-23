@@ -27,6 +27,15 @@ export const researchDecisionLabels: Record<ResearchDecision, string> = {
   PASS: "暂时放弃",
 };
 
+// 下一步文字：只设时间未写行动时如实说明，不说「尚未安排」（#57）。
+export function nextActionText(entry: {
+  nextAction: string;
+  nextActionAt: string | null;
+}) {
+  if (entry.nextAction) return entry.nextAction;
+  return entry.nextActionAt ? "已定时间，尚未写具体行动。" : "尚未安排下一步。";
+}
+
 const emptyResearch: ResearchFields = {
   isStarred: false,
   tags: [],
@@ -322,9 +331,19 @@ export function ResearchPanel({ project }: { project: Project }) {
               rows={3}
               maxLength={2000}
               disabled={saving}
+              aria-describedby={
+                draft.nextActionAt && !draft.nextAction.trim()
+                  ? "next-action-hint"
+                  : undefined
+              }
               onChange={(event) => change("nextAction", event.target.value)}
             />
           </label>
+          {draft.nextActionAt && !draft.nextAction.trim() && (
+            <small id="next-action-hint" className="field-help">
+              已设置下一步时间，建议写下到时具体要做什么。
+            </small>
+          )}
           <p className="draft-note">
             仅在点击保存后写入本地数据库；关闭页面前的草稿不保证保留。
           </p>
@@ -403,7 +422,7 @@ export function ResearchPanel({ project }: { project: Project }) {
             </div>
             <div>
               <h3>下一步行动</h3>
-              <p>{entry.nextAction || "尚未安排下一步。"}</p>
+              <p>{nextActionText(entry)}</p>
               {entry.nextActionAt && (
                 <time>计划时间：{formatDate(entry.nextActionAt)}</time>
               )}

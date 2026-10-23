@@ -12,7 +12,11 @@ import {
   type ResearchStage,
   type Resource,
 } from "./api";
-import { researchDecisionLabels, researchStageLabels } from "./ResearchPanel";
+import {
+  nextActionText,
+  researchDecisionLabels,
+  researchStageLabels,
+} from "./ResearchPanel";
 
 interface LibraryItem {
   entry: ResearchEntry;
@@ -223,7 +227,7 @@ export function LibraryPage() {
                 </div>
                 <div>
                   <strong>下一步</strong>
-                  <p>{entry.nextAction || "尚未安排下一步。"}</p>
+                  <p>{nextActionText(entry)}</p>
                   {entry.nextActionAt && (
                     <NextActionTime value={entry.nextActionAt} />
                   )}
