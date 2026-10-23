@@ -37,6 +37,61 @@ func TestSelectItemsRequiresMeaningfulComparableChangesAndStableRanking(t *testi
 	}
 }
 
+func TestSelectItemsPrefersScoredThenPersonalThenAttention(t *testing.T) {
+	scored, low, high := 30.0, 0.5, 1.2
+	unscored := func(id, firstSeen string, index *float64) CandidateSnapshot {
+		item := candidate(id, firstSeen, nil, nil, nil)
+		item.Trend.Status, item.Trend.PrimarySignal = trends.StatusInsufficientHistory, nil
+		item.Trend.Attention = trends.AttentionResult{Index: index, Metrics: []trends.AttentionMetric{}}
+		return item
+	}
+	top := candidate("scored", "2026-10-10T00:00:00.000000000Z", &scored, nil, nil)
+	starred := unscored("starred", "2026-10-10T00:00:00.000000000Z", &low)
+	starred.Research = &ResearchSnapshot{Revision: 1, IsStarred: true, Stage: "DEEP", Decision: "LEARN"}
+	popular := unscored("popular", "2026-10-11T00:00:00.000000000Z", &high)
+	newest := unscored("newest-no-attention", "2026-10-16T01:00:00.000000000Z", nil)
+	input := FrozenInput{CutoffAt: "2026-10-16T02:00:00.000000000Z", DiscoveryStartAt: "2026-10-15T02:00:00.000000000Z", MaxItems: 3, HasData: true,
+		Candidates: []CandidateSnapshot{newest, popular, starred, top}}
+	items, empty := SelectItems(input)
+	if empty != nil || len(items) != 3 {
+		t.Fatalf("items=%+v empty=%v", items, empty)
+	}
+	got := []string{items[0].ProjectID, items[1].ProjectID, items[2].ProjectID}
+	want := []string{"scored", "starred", "popular"}
+	for index := range want {
+		if got[index] != want[index] {
+			t.Fatalf("order=%v want=%v", got, want)
+		}
+	}
+}
+
+func TestBriefItemCarriesSummaryAndFrozenSourceFactsWithoutEvidence(t *testing.T) {
+	item := candidate("ponytail", "2026-10-16T01:00:00.000000000Z", nil, nil, nil)
+	item.Project.Summary = "Makes your AI agent lazy."
+	item.Trend.Attention = trends.AttentionResult{Metrics: []trends.AttentionMetric{
+		{SourceRecordID: "gh", Source: "GITHUB", Metric: "STARS", Value: 173618, ObservedAt: "2026-10-23T03:08:32.000000000Z", ObservationID: "o1"},
+		{SourceRecordID: "gh", Source: "GITHUB", Metric: "FORKS", Value: 9452, ObservedAt: "2026-10-23T03:08:32.000000000Z", ObservationID: "o2"},
+		{SourceRecordID: "hn", Source: "HACKER_NEWS", Metric: "POINTS", Value: 412, ObservedAt: "2026-10-23T02:21:53.000000000Z", ObservationID: "o3"},
+	}}
+	built := makeBriefItem(item, []string{"FIRST_COVERAGE"})
+	if built.Summary != "Makes your AI agent lazy." {
+		t.Fatalf("summary=%q", built.Summary)
+	}
+	want := "来源观测：GitHub 累计 Stars 173,618、Forks 9,452（2026-10-23 03:08 UTC）；Hacker News 累计 分数 412（2026-10-23 02:21 UTC）。累计量只说明关注度。"
+	if built.FactSummary != want {
+		t.Fatalf("fact=%q\nwant=%q", built.FactSummary, want)
+	}
+	// 派生的来源描述与简介相同：事实行不重复简介，改用来源观测。
+	item.Evidence = []catalog.Evidence{{ID: "desc", ProjectID: "ponytail", Kind: "OFFICIAL_DESCRIPTION", Excerpt: " Makes your AI agent lazy. ", ObservationIDs: []string{}}}
+	if repeated := makeBriefItem(item, []string{"FIRST_COVERAGE"}); repeated.FactSummary != want || len(repeated.EvidenceIDs) != 1 {
+		t.Fatalf("repeated summary fact=%q evidence=%v", repeated.FactSummary, repeated.EvidenceIDs)
+	}
+	empty := makeBriefItem(candidate("bare", "2026-10-16T01:00:00.000000000Z", nil, nil, nil), []string{"FIRST_COVERAGE"})
+	if empty.FactSummary != "尚无可引用事实证据。" || empty.Summary != "" {
+		t.Fatalf("bare item=%+v", empty)
+	}
+}
+
 func TestFingerprintIgnoresIdsTimesAndRepeatedEquivalentContent(t *testing.T) {
 	rate, duration := 10.0, 24.0
 	left := candidate("p1", "2026-10-14T00:00:00.000000000Z", nil, &rate, &duration)

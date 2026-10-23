@@ -9,7 +9,9 @@ import {
   type BriefReason,
   type BriefSettings,
   type DailyBrief,
+  type ResearchDecision,
 } from "./api";
+import { researchDecisionLabels } from "./ResearchPanel";
 
 const reasonLabels: Record<BriefReason, string> = {
   NEW_DISCOVERY: "新发现",
@@ -380,6 +382,9 @@ function BriefCard({ brief }: { brief: DailyBrief }) {
                     ))}
                   </div>
                   <h3>{item.title}</h3>
+                  {item.summary && (
+                    <p className="brief-summary">{item.summary}</p>
+                  )}
                 </div>
                 <a href={item.url} target="_blank" rel="noreferrer">
                   项目来源 ↗
@@ -399,7 +404,11 @@ function BriefCard({ brief }: { brief: DailyBrief }) {
                 {item.personalDecision && (
                   <div>
                     <dt>个人判断</dt>
-                    <dd>{item.personalDecision}</dd>
+                    <dd>
+                      {researchDecisionLabels[
+                        item.personalDecision as ResearchDecision
+                      ] ?? item.personalDecision}
+                    </dd>
                   </div>
                 )}
                 {item.nextAction && (

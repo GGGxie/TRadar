@@ -228,33 +228,36 @@ func acceleratingAlert(candidate signalCandidate, observations []catalog.Observa
 }
 
 func SortProjectTrends(items []ProjectTrend) {
-	sort.SliceStable(items, func(i, j int) bool {
-		left, right := items[i], items[j]
-		if left.Trend.Score != nil && right.Trend.Score == nil {
+	sort.SliceStable(items, func(i, j int) bool { return LessProjectTrend(items[i], items[j]) })
+}
+
+// LessProjectTrend is the radar ordering, exposed so other modules can extend
+// it (e.g. daily brief personal priority) without duplicating the rules.
+func LessProjectTrend(left, right ProjectTrend) bool {
+	if left.Trend.Score != nil && right.Trend.Score == nil {
+		return true
+	}
+	if left.Trend.Score == nil && right.Trend.Score != nil {
+		return false
+	}
+	if left.Trend.Score != nil && right.Trend.Score != nil && *left.Trend.Score != *right.Trend.Score {
+		return *left.Trend.Score > *right.Trend.Score
+	}
+	// 待积累组用当前关注度辅助发现；它只影响排序，不进入 score。
+	if left.Trend.Score == nil {
+		leftIndex, rightIndex := left.Trend.Attention.Index, right.Trend.Attention.Index
+		if leftIndex != nil && rightIndex == nil {
 			return true
 		}
-		if left.Trend.Score == nil && right.Trend.Score != nil {
+		if leftIndex == nil && rightIndex != nil {
 			return false
 		}
-		if left.Trend.Score != nil && right.Trend.Score != nil && *left.Trend.Score != *right.Trend.Score {
-			return *left.Trend.Score > *right.Trend.Score
+		if leftIndex != nil && rightIndex != nil && *leftIndex != *rightIndex {
+			return *leftIndex > *rightIndex
 		}
-		// 待积累组用当前关注度辅助发现；它只影响排序，不进入 score。
-		if left.Trend.Score == nil {
-			leftIndex, rightIndex := left.Trend.Attention.Index, right.Trend.Attention.Index
-			if leftIndex != nil && rightIndex == nil {
-				return true
-			}
-			if leftIndex == nil && rightIndex != nil {
-				return false
-			}
-			if leftIndex != nil && rightIndex != nil && *leftIndex != *rightIndex {
-				return *leftIndex > *rightIndex
-			}
-		}
-		if left.Project.FirstSeenAt != right.Project.FirstSeenAt {
-			return left.Project.FirstSeenAt > right.Project.FirstSeenAt
-		}
-		return left.Project.ID < right.Project.ID
-	})
+	}
+	if left.Project.FirstSeenAt != right.Project.FirstSeenAt {
+		return left.Project.FirstSeenAt > right.Project.FirstSeenAt
+	}
+	return left.Project.ID < right.Project.ID
 }

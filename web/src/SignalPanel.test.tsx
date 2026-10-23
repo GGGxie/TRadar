@@ -212,6 +212,33 @@ describe("SignalPanel", () => {
     ).toBeTruthy();
   });
 
+  it("freezes current sources as evidence for analysis", async () => {
+    const fetcher = stubApi([source]);
+    const onEvidenceSaved = vi.fn();
+    const base = fetcher.getMockImplementation()!;
+    fetcher.mockImplementation(async (path: string, options?: RequestInit) => {
+      if (path.endsWith("/evidence/from-sources"))
+        return new Response(
+          JSON.stringify({ data: { created: 2, evidence: [{}, {}] } }),
+          { status: 201 },
+        );
+      return base(path, options);
+    });
+    render(<SignalPanel projectId="p1" onEvidenceSaved={onEvidenceSaved} />);
+    await userEvent.click(
+      await screen.findByRole("button", { name: "保存为证据" }),
+    );
+    expect(
+      await screen.findByText("已保存 2 条来源证据，可在分析时勾选引用。"),
+    ).toBeTruthy();
+    const call = fetcher.mock.calls.find(([path]) =>
+      String(path).endsWith("/projects/p1/evidence/from-sources"),
+    )!;
+    expect(call[1]?.method).toBe("POST");
+    expect(new Headers(call[1]?.headers).get("Idempotency-Key")).toBeTruthy();
+    expect(onEvidenceSaved).toHaveBeenCalledTimes(1);
+  });
+
   it("explains that manually recorded projects have no source observations", async () => {
     stubApi([]);
     render(<SignalPanel projectId="p1" />);

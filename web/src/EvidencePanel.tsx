@@ -20,9 +20,12 @@ const emptyDraft: EvidenceInput = {
 export function EvidencePanel({
   projectId,
   onChanged,
+  refreshKey = 0,
 }: {
   projectId: string;
   onChanged?: () => void;
+  // 其他面板（如来源派生）新增证据后递增，触发重新读取。
+  refreshKey?: number;
 }) {
   const [page, setPage] = useState(1);
   const [result, setResult] = useState<Page<Evidence> | null>(null);
@@ -50,7 +53,7 @@ export function EvidencePanel({
         if (!controller.signal.aborted) setLoading(false);
       });
     return () => controller.abort();
-  }, [projectId, page]);
+  }, [projectId, page, refreshKey]);
 
   useEffect(() => {
     const protect = (event: BeforeUnloadEvent) => {
