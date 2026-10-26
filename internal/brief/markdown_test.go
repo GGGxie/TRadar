@@ -45,3 +45,25 @@ func TestMarkdownUsesOnlyFrozenDataAndEscapesUntrustedStructure(t *testing.T) {
 }
 
 func pointer(value string) *string { return &value }
+
+// #58：导出按日报时区显示到分钟，保留 UTC 原值便于核对。
+func TestMarkdownShowsTimesInBriefTimeZone(t *testing.T) {
+	output := RenderMarkdown(DailyBrief{
+		Date: "2026-10-16", TimeZone: "Asia/Shanghai", Version: 1,
+		CutoffAt: "2026-10-16T00:30:00.123456789Z", GeneratedAt: "2026-10-16T00:31:05.000000000Z",
+		SelectionVersion: SelectionVersion, RankingVersion: "trend-v1",
+		Coverage: []Coverage{{Source: "GITHUB", State: "AVAILABLE", LatestCollectedAt: pointer("2026-10-15T23:59:59.000000000Z")}},
+	})
+	for _, required := range []string{
+		"- **数据截止**：2026-10-16 08:30（Asia/Shanghai；UTC 2026-10-16T00:30:00Z）",
+		"- **生成时间**：2026-10-16 08:31（Asia/Shanghai）",
+		"最近采集 2026-10-16 07:59（Asia/Shanghai）",
+	} {
+		if !strings.Contains(output, required) {
+			t.Fatalf("missing %q:\n%s", required, output)
+		}
+	}
+	if strings.Contains(output, ".123456789") {
+		t.Fatalf("raw nanosecond timestamp leaked:\n%s", output)
+	}
+}

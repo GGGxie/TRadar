@@ -151,6 +151,8 @@ coverage 仅总结已采集资料的覆盖与新鲜度，不从未采集推断�
 设置切换时区会产生不同业务日期身份，已有版本维持原时区，并在列表中显示。
 
 Markdown 必须来自保存快照，含日期 / 时区 / version / cutoffAt / 算法版本 / 覆盖说明 / 引用 / 空结果原因。
+站内与 Markdown 的时间按该版本的 timeZone 显示到分钟；Markdown 的数据截止另附 UTC 秒级原值，
+站内原值放在 `<time dateTime>`（[#58](https://github.com/GGGxie/TRadar/issues/58)）。接口字段仍为 UTC RFC3339。
 转义标题、链接与来源文本，禁用嵌入原始 HTML，禁止将恶意来源文字拼成 Markdown 结构。
 不导出 Token、完整个人 notes 或错误堆栈；已选的个人决策与下一步有明确标签。
 同一 brief ID 多次导出的语义和内容相同，不能重新查询最新数据改写正文。

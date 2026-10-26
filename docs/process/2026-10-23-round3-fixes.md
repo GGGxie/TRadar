@@ -34,3 +34,14 @@
 - **TDD**：`ResearchPanel.test.tsx`「describes a scheduled next step…」与 `LibraryRhythm.test.tsx` 新断言先失败后通过。
 - **真实验证**：认知库两张卡片分别显示「已到期 · 10/20 09:00」「计划时间 · 10/24 10:00」并配新文案；
   详情页同样；编辑时出现提示，输入行动后提示消失；axe 无违规。
+
+## #58 日报时间按时区显示
+- **实现**：卡片「截止 10/23 17:17（Asia/Shanghai）」按版本自己的 timeZone 换算，原值放在 `<time dateTime>`；
+  Markdown 的数据截止、生成时间、来源最近采集按时区显示到分钟，数据截止附 `UTC 2026-10-23T09:17:26Z`。
+  时区无法加载或时间无法解析时原样输出。接口字段与存储不变。
+- **TDD**：`TestMarkdownShowsTimesInBriefTimeZone`、`BriefPage.test.tsx`「shows the cutoff in each brief's own time zone」
+  （同页 Asia/Shanghai 与 America/Los_Angeles 两个版本）先失败后通过。
+- **真实验证**：卡片显示「截止 10/23 17:17（Asia/Shanghai）」；下载的 Markdown 为
+  「2026-10-23 17:17（Asia/Shanghai；UTC 2026-10-23T09:17:26Z）」。
+- **工具问题**：构建与启动服务放在同一批调用，服务再次早于二进制 1 秒启动，第一次 Markdown 仍是旧格式；
+  分开两轮后结果正确。
