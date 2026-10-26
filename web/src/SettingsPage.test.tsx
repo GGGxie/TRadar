@@ -147,6 +147,7 @@ describe("SettingsPage", () => {
 
   it("saves with a revision and queues one manual run", async () => {
     const calls: { path: string; options?: RequestInit }[] = [];
+    let posted = false;
     const queued: IngestionRun = {
       id: "run-1",
       source: "GITHUB",
@@ -190,8 +191,16 @@ describe("SettingsPage", () => {
               config: { ...sources[0].config, intervalMinutes: 30 },
             },
           });
-        if (path.endsWith("/ingestion-runs") && options?.method === "POST")
+        if (path.endsWith("/ingestion-runs") && options?.method === "POST") {
+          posted = true;
           return json({ data: queued }, 202);
+        }
+        // 入队后轮询时任务已完成（#60）。
+        if (posted && path.includes("/ingestion-runs") && !options?.method)
+          return json({
+            data: [{ ...queued, status: "SUCCEEDED", finishedAt: now }],
+            pagination: {},
+          });
         return json({ data: [], pagination: {} });
       }),
     );
@@ -223,7 +232,12 @@ describe("SettingsPage", () => {
     expect(
       new Headers(trigger?.options?.headers).get("Idempotency-Key"),
     ).toBeTruthy();
-  });
+    // #60：任务离开排队/进行中后，入队提示不再显示。
+    await waitFor(
+      () => expect(screen.queryByText("采集任务已进入队列")).toBeNull(),
+      { timeout: 3500 },
+    );
+  }, 10000);
 
   it("edits quality thresholds for GitHub and Hacker News", async () => {
     const patches: Record<string, unknown> = {};

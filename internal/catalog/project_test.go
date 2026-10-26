@@ -73,3 +73,38 @@ func TestProjectValidation(t *testing.T) {
 		}
 	}
 }
+
+// #60：在搜索框粘贴项目链接（可省略协议、带 /tree/main 或跟踪参数）时按规范化链接匹配。
+func TestListProjectsMatchesPastedLinks(t *testing.T) {
+	db, err := storage.Open(filepath.Join(t.TempDir(), "radar.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	ctx := context.Background()
+	now := time.Date(2026, 10, 26, 0, 0, 0, 0, time.UTC)
+	err = storage.WithTx(ctx, db, func(tx *sql.Tx) error {
+		if _, _, err := CreateProject(ctx, tx, CreateProjectInput{Name: "ponytail", CanonicalURL: "https://github.com/DietrichGebert/ponytail"}, now); err != nil {
+			return err
+		}
+		_, _, err := CreateProject(ctx, tx, CreateProjectInput{Name: "other", CanonicalURL: "https://example.com/tool"}, now)
+		return err
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for query, want := range map[string]string{
+		"github.com/DietrichGebert/ponytail":                   "ponytail",
+		"https://github.com/dietrichgebert/ponytail/tree/main": "ponytail",
+		"example.com/tool?utm_source=x":                        "other",
+		"ponytail":                                             "ponytail",
+	} {
+		list, total, err := ListProjects(ctx, db, ProjectFilter{Query: query, Page: 1, PageSize: 10})
+		if err != nil || total != 1 || len(list) != 1 || list[0].Name != want {
+			t.Fatalf("query %q: total=%d list=%+v err=%v", query, total, list, err)
+		}
+	}
+	if _, total, _ := ListProjects(ctx, db, ProjectFilter{Query: "github.com/nobody/none", Page: 1, PageSize: 10}); total != 0 {
+		t.Fatalf("unknown link matched %d projects", total)
+	}
+}

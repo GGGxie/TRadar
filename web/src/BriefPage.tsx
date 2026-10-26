@@ -174,10 +174,11 @@ export function BriefPage() {
         </div>
       ) : (
         <div className="brief-list">
-          {briefs.map((item) => (
+          {briefs.map((item, index) => (
             <BriefCard
               key={item.id}
               brief={item}
+              defaultExpanded={index === 0}
               previous={briefs.find(
                 (candidate) => candidate.id === item.previousBriefId,
               )}
@@ -360,11 +361,16 @@ function baselineNote(brief: DailyBrief, previous?: DailyBrief) {
 function BriefCard({
   brief,
   previous,
+  defaultExpanded = true,
 }: {
   brief: DailyBrief;
   previous?: DailyBrief;
+  defaultExpanded?: boolean;
 }) {
   const [downloadError, setDownloadError] = useState("");
+  // 同页只展开第一个版本，其余默认折叠（#60）；折叠内容保留在 DOM 中并隐藏。
+  const [expanded, setExpanded] = useState(defaultExpanded);
+  const bodyId = `brief-body-${brief.id}`;
   return (
     <article className="brief-card">
       <header>
@@ -405,105 +411,122 @@ function BriefCard({
         </p>
       )}
       <p className="brief-baseline">{baselineNote(brief, previous)}</p>
-      <div className="brief-coverage" aria-label="数据覆盖">
-        {brief.coverage.map((item) => (
-          <span
-            key={item.source}
-            className={`coverage-${item.state.toLowerCase()}`}
-          >
-            {item.source.replaceAll("_", " ")} · {coverageLabels[item.state]}
-          </span>
-        ))}
-      </div>
-      {brief.emptyReason ? (
-        <div className="brief-empty-copy">
-          <strong>
-            {brief.emptyReason === "NO_DATA"
-              ? "尚无数据"
-              : "今天没有新的实质变化"}
-          </strong>
-          <p>
-            {brief.emptyReason === "NO_DATA"
-              ? "先录入项目或运行信息源采集，再生成日报。"
-              : "已有项目与资料保持不变，因此本版没有重复推荐。"}
-          </p>
-        </div>
-      ) : (
-        <div className="brief-items">
-          {brief.omittedItemCount > 0 && (
-            <p className="brief-omitted" role="note">
-              另有 {brief.omittedItemCount} 个符合条件的项目因上限{" "}
-              {brief.items.length}{" "}
-              未收录；下次生成仍可入选，如需一次看全可在上方调高「最多项目」。
-            </p>
-          )}
-          {brief.items.map((item) => (
-            <section key={item.projectId} className="brief-item">
-              <div className="brief-item-heading">
-                <div>
-                  <div className="brief-reasons">
-                    {item.reasons.map((reason) => (
-                      <span key={reason}>{reasonLabels[reason]}</span>
-                    ))}
-                  </div>
-                  <h3>{item.title}</h3>
-                  {item.summary && (
-                    <p className="brief-summary">{item.summary}</p>
-                  )}
-                </div>
-                <a href={item.url} target="_blank" rel="noreferrer">
-                  项目来源 ↗
-                </a>
-              </div>
-              <dl>
-                <div>
-                  <dt>事实</dt>
-                  <dd>{item.factSummary}</dd>
-                </div>
-                {item.hypothesisSummary && (
-                  <div>
-                    <dt>已存推测</dt>
-                    <dd>{item.hypothesisSummary}</dd>
-                  </div>
-                )}
-                {item.personalDecision && (
-                  <div>
-                    <dt>个人判断</dt>
-                    <dd>
-                      {researchDecisionLabels[
-                        item.personalDecision as ResearchDecision
-                      ] ?? item.personalDecision}
-                    </dd>
-                  </div>
-                )}
-                {item.nextAction && (
-                  <div>
-                    <dt>下一步</dt>
-                    <dd>{item.nextAction}</dd>
-                  </div>
-                )}
-              </dl>
-              {!!item.evidenceSnapshots.length && (
-                <details>
-                  <summary>{item.evidenceSnapshots.length} 条冻结证据</summary>
-                  <ul>
-                    {item.evidenceSnapshots.map((evidence) => (
-                      <li key={evidence.id}>
-                        <a href={evidence.url} target="_blank" rel="noreferrer">
-                          {evidence.title} ↗
-                        </a>
-                        <span>
-                          {evidence.kind} · {evidence.collectedAt}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                </details>
-              )}
-            </section>
+      <button
+        type="button"
+        className="text-button brief-toggle"
+        aria-expanded={expanded}
+        aria-controls={bodyId}
+        onClick={() => setExpanded((value) => !value)}
+      >
+        {expanded ? "收起本版" : `展开本版（${brief.items.length} 个项目）`}
+      </button>
+      <div id={bodyId} hidden={!expanded}>
+        <div className="brief-coverage" aria-label="数据覆盖">
+          {brief.coverage.map((item) => (
+            <span
+              key={item.source}
+              className={`coverage-${item.state.toLowerCase()}`}
+            >
+              {item.source.replaceAll("_", " ")} · {coverageLabels[item.state]}
+            </span>
           ))}
         </div>
-      )}
+        {brief.emptyReason ? (
+          <div className="brief-empty-copy">
+            <strong>
+              {brief.emptyReason === "NO_DATA"
+                ? "尚无数据"
+                : "今天没有新的实质变化"}
+            </strong>
+            <p>
+              {brief.emptyReason === "NO_DATA"
+                ? "先录入项目或运行信息源采集，再生成日报。"
+                : "已有项目与资料保持不变，因此本版没有重复推荐。"}
+            </p>
+          </div>
+        ) : (
+          <div className="brief-items">
+            {brief.omittedItemCount > 0 && (
+              <p className="brief-omitted" role="note">
+                另有 {brief.omittedItemCount} 个符合条件的项目因上限{" "}
+                {brief.items.length}{" "}
+                未收录；下次生成仍可入选，如需一次看全可在上方调高「最多项目」。
+              </p>
+            )}
+            {brief.items.map((item) => (
+              <section key={item.projectId} className="brief-item">
+                <div className="brief-item-heading">
+                  <div>
+                    <div className="brief-reasons">
+                      {item.reasons.map((reason) => (
+                        <span key={reason}>{reasonLabels[reason]}</span>
+                      ))}
+                    </div>
+                    <h3>{item.title}</h3>
+                    {item.summary && (
+                      <p className="brief-summary">{item.summary}</p>
+                    )}
+                  </div>
+                  <a href={item.url} target="_blank" rel="noreferrer">
+                    项目来源 ↗
+                  </a>
+                </div>
+                <dl>
+                  <div>
+                    <dt>事实</dt>
+                    <dd>{item.factSummary}</dd>
+                  </div>
+                  {item.hypothesisSummary && (
+                    <div>
+                      <dt>已存推测</dt>
+                      <dd>{item.hypothesisSummary}</dd>
+                    </div>
+                  )}
+                  {item.personalDecision && (
+                    <div>
+                      <dt>个人判断</dt>
+                      <dd>
+                        {researchDecisionLabels[
+                          item.personalDecision as ResearchDecision
+                        ] ?? item.personalDecision}
+                      </dd>
+                    </div>
+                  )}
+                  {item.nextAction && (
+                    <div>
+                      <dt>下一步</dt>
+                      <dd>{item.nextAction}</dd>
+                    </div>
+                  )}
+                </dl>
+                {!!item.evidenceSnapshots.length && (
+                  <details>
+                    <summary>
+                      {item.evidenceSnapshots.length} 条冻结证据
+                    </summary>
+                    <ul>
+                      {item.evidenceSnapshots.map((evidence) => (
+                        <li key={evidence.id}>
+                          <a
+                            href={evidence.url}
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            {evidence.title} ↗
+                          </a>
+                          <span>
+                            {evidence.kind} · {evidence.collectedAt}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </details>
+                )}
+              </section>
+            ))}
+          </div>
+        )}
+      </div>
     </article>
   );
 }

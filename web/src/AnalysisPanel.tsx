@@ -63,6 +63,18 @@ function hasAuthoredContent(content: AnalysisContent) {
   );
 }
 
+// 事实声明必须引用证据；保存前指出具体位置（#60），后端仍会再次校验。
+function firstFactWithoutEvidence(content: AnalysisContent) {
+  for (const section of content.sections) {
+    const index = section.claims.findIndex(
+      (claim) => claim.kind === "FACT" && !(claim.evidenceIds ?? []).length,
+    );
+    if (index >= 0)
+      return `「${sectionLabels[section.key]}」声明 ${index + 1} 标为事实，需要至少引用一条证据；也可以改为推测。`;
+  }
+  return "";
+}
+
 function emptyContent(level: AnalysisLevel): AnalysisContent {
   return {
     sections: sectionKeys[level].map((key) => ({
@@ -337,6 +349,11 @@ export function AnalysisPanel({
       setActionError(
         "人工版本至少写下一条声明、待验证问题或下一步检查；只写一部分也可以保存。",
       );
+      return;
+    }
+    const missing = firstFactWithoutEvidence(draft);
+    if (missing) {
+      setActionError(missing);
       return;
     }
     setSaving(true);
