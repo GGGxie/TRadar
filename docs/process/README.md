@@ -31,14 +31,14 @@
 | [GitHub Issues 任务看板迁移](https://github.com/GGGxie/TRadar/issues/27) | [`2026-10-19-github-issues-migration.md`](2026-10-19-github-issues-migration.md) | 已完成 |
 | [Cloudflare Tunnel 临时运行](https://github.com/GGGxie/TRadar/issues/28) | [`2026-10-20-cloudflare-tunnel-launch.md`](2026-10-20-cloudflare-tunnel-launch.md) | 已完成，临时服务运行中 |
 | [浏览器访问令牌闭环](https://github.com/GGGxie/TRadar/issues/29) | [`2026-10-20-browser-access-token.md`](2026-10-20-browser-access-token.md) | 进行中，PR 待审阅 |
-| [UX-1 当前关注度与来源展示](https://github.com/GGGxie/TRadar/issues/32) | [`2026-10-23-ux1-current-attention.md`](2026-10-23-ux1-current-attention.md) | 已完成，PR 待审阅 |
-| [UX-2 冷启动可用](https://github.com/GGGxie/TRadar/issues/33) | [`2026-10-23-ux2-cold-start.md`](2026-10-23-ux2-cold-start.md) | 已完成，PR 待审阅 |
-| [UX-3 采集质量门槛](https://github.com/GGGxie/TRadar/issues/34) | [`2026-10-23-ux3-quality-thresholds.md`](2026-10-23-ux3-quality-thresholds.md) | 已完成，PR 待审阅 |
-| [UX-4 采集来源进入分析与日报](https://github.com/GGGxie/TRadar/issues/35) | [`2026-10-23-ux4-source-facts.md`](2026-10-23-ux4-source-facts.md) | 已完成，PR 待审阅 |
-| [UX-5 自动归类方向](https://github.com/GGGxie/TRadar/issues/36) | [`2026-10-23-ux5-auto-category.md`](2026-10-23-ux5-auto-category.md) | 已完成，PR 待审阅 |
-| [UX-6 体验小问题合集](https://github.com/GGGxie/TRadar/issues/37) | [`2026-10-23-ux6-small-fixes.md`](2026-10-23-ux6-small-fixes.md) | 已完成，PR 待审阅 |
-| [第二轮试用修复 UX-7 至 UX-12](https://github.com/GGGxie/TRadar/issues/44)（#44–#49） | [`2026-10-23-round2-fixes.md`](2026-10-23-round2-fixes.md) | 已完成，PR 待审阅 |
-| [第三轮试用修复 UX-13 至 UX-17](https://github.com/GGGxie/TRadar/issues/56)（#56–#60） | [`2026-10-23-round3-fixes.md`](2026-10-23-round3-fixes.md) | 已完成，PR 待审阅 |
+| [UX-1 当前关注度与来源展示](https://github.com/GGGxie/TRadar/issues/32) | [`2026-10-23-ux1-current-attention.md`](2026-10-23-ux1-current-attention.md) | 已完成，已合并（PR #38） |
+| [UX-2 冷启动可用](https://github.com/GGGxie/TRadar/issues/33) | [`2026-10-23-ux2-cold-start.md`](2026-10-23-ux2-cold-start.md) | 已完成，已合并（PR #39） |
+| [UX-3 采集质量门槛](https://github.com/GGGxie/TRadar/issues/34) | [`2026-10-23-ux3-quality-thresholds.md`](2026-10-23-ux3-quality-thresholds.md) | 已完成，已合并（PR #40） |
+| [UX-4 采集来源进入分析与日报](https://github.com/GGGxie/TRadar/issues/35) | [`2026-10-23-ux4-source-facts.md`](2026-10-23-ux4-source-facts.md) | 已完成，已合并（PR #41） |
+| [UX-5 自动归类方向](https://github.com/GGGxie/TRadar/issues/36) | [`2026-10-23-ux5-auto-category.md`](2026-10-23-ux5-auto-category.md) | 已完成，已合并（PR #42） |
+| [UX-6 体验小问题合集](https://github.com/GGGxie/TRadar/issues/37) | [`2026-10-23-ux6-small-fixes.md`](2026-10-23-ux6-small-fixes.md) | 已完成，已合并（PR #43） |
+| [第二轮试用修复 UX-7 至 UX-12](https://github.com/GGGxie/TRadar/issues/44)（#44–#49） | [`2026-10-23-round2-fixes.md`](2026-10-23-round2-fixes.md) | 已完成，已合并（PR #50–#55） |
+| [第三轮试用修复 UX-13 至 UX-17](https://github.com/GGGxie/TRadar/issues/56)（#56–#60） | [`2026-10-23-round3-fixes.md`](2026-10-23-round3-fixes.md) | 已完成，已合并（PR #61–#65） |
 
 ## 后续记录模板
 

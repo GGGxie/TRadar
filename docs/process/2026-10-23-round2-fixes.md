@@ -2,7 +2,7 @@
 
 - 记录日期：2026-10-23（Asia/Shanghai）
 - 任务来源：GitHub Issues [#44](https://github.com/GGGxie/TRadar/issues/44)–[#49](https://github.com/GGGxie/TRadar/issues/49)
-- 状态：已完成，PR 待审阅
+- 状态：已完成，已合并到 main（PR #50–#55，2026-10-26）
 - 采用技能：`test-driven-development`、`incremental-implementation`、`debugging-and-error-recovery`（读取对应 `SKILL.md`）
 
 第二轮在 #43 栈顶、全新空库上以用户身份试用，发现的问题逐个建 Issue，按严重程度依次修复。每节记录根因、测试与验证。
