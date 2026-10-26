@@ -2,7 +2,7 @@
 
 - 记录日期：2026-10-23（Asia/Shanghai）
 - 任务来源：[GitHub Issue #35](https://github.com/GGGxie/TRadar/issues/35)（方案见该 Issue 评论）
-- 状态：已完成，PR 待审阅（基于 #34 分支）
+- 状态：已完成，已合并到 main（PR #41，2026-10-26）
 - 对应提交：`a95a6da`（后端主体）及本记录所在提交（界面、日报细节与文档）
 
 ## 1. 背景与边界

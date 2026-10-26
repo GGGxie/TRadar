@@ -1,7 +1,7 @@
 # 第三轮试用修复（UX-13 至 UX-17）：agent-skills 过程记录
 - 记录日期：2026-10-23（Asia/Shanghai）
 - 任务来源：GitHub Issues [#56](https://github.com/GGGxie/TRadar/issues/56)–[#60](https://github.com/GGGxie/TRadar/issues/60)
-- 状态：已完成，PR 待审阅
+- 状态：已完成，已合并到 main（PR #61–#65，2026-10-26）
 - 采用技能：test-driven-development、incremental-implementation、frontend-ui-engineering
 - 试用环境：第二轮库的副本 `/tmp/tradar-uat/round3.db`，端口 18086；不使用 `data/radar.db`。
 
