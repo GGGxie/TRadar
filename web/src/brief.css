@@ -132,6 +132,11 @@
   color: var(--accent);
   font-size: 11px;
 }
+/* 来源链接不换行（#60） */
+.brief-item-heading > a {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
 .brief-reasons {
   display: flex;
   flex-wrap: wrap;
@@ -239,5 +244,16 @@
 @media (max-width: 720px) {
   .brief-omitted {
     padding: 12px 16px;
+  }
+}
+
+/* 版本折叠开关（#60） */
+.brief-toggle {
+  display: block;
+  margin: 8px 24px;
+}
+@media (max-width: 720px) {
+  .brief-toggle {
+    margin: 8px 16px;
   }
 }

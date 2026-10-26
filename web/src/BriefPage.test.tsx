@@ -199,6 +199,50 @@ describe("BriefPage", () => {
     );
   });
 
+  it("expands only the newest version on the page and lets older ones open", async () => {
+    // #60：同页多个版本时只展开第一个，其余折叠为标题行。
+    const older = { ...brief, id: "b-old", version: 1, previousBriefId: null };
+    const newer = {
+      ...brief,
+      id: "b-new",
+      version: 2,
+      previousBriefId: "b-old",
+    };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: RequestInfo | URL) => {
+        const path = String(input);
+        if (path.endsWith("/brief-settings")) return json({ data: settings });
+        if (path.includes("/briefs?page="))
+          return json({
+            data: [newer, older],
+            pagination: { page: 1, pageSize: 20, totalItems: 2, totalPages: 1 },
+          });
+        throw new Error(`unexpected request ${path}`);
+      }),
+    );
+    render(<BriefPage />);
+    const first = (
+      await screen.findByRole("heading", { name: "2026-10-16 · 版本 2" })
+    ).closest("article")!;
+    const second = screen
+      .getByRole("heading", { name: "2026-10-16 · 版本 1" })
+      .closest("article")!;
+    expect(
+      within(first).getByRole("heading", { name: "Frozen Signal" }),
+    ).toBeTruthy();
+    expect(
+      within(second).queryByRole("heading", { name: "Frozen Signal" }),
+    ).toBeNull();
+    const toggle = within(second).getByRole("button", { name: /展开本版/ });
+    expect(toggle.getAttribute("aria-expanded")).toBe("false");
+    await userEvent.setup().click(toggle);
+    expect(toggle.getAttribute("aria-expanded")).toBe("true");
+    expect(
+      within(second).getByRole("heading", { name: "Frozen Signal" }),
+    ).toBeTruthy();
+  });
+
   it("downloads Markdown with the access token and the server filename", async () => {
     window.sessionStorage.setItem("tradar.accessToken", "secret-token");
     const fetcher = vi.fn((input: RequestInfo | URL) => {

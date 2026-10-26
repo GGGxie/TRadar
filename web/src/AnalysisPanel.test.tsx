@@ -348,6 +348,45 @@ describe("AnalysisPanel", () => {
       ),
     ).toBe(false);
   });
+  it("names the section and claim of a fact without evidence", async () => {
+    // #60：事实声明缺证据时指出是哪一节哪一条，且不发请求。
+    const fetcher = vi.fn(async (path: string, options?: RequestInit) => {
+      if (options?.method === "POST")
+        return new Response("{}", { status: 500 });
+      if (path.includes("/evidence?"))
+        return new Response(JSON.stringify(page([evidence])));
+      if (path === "/api/v1/analysis-capabilities")
+        return new Response(
+          JSON.stringify({ data: { rulesEnabled: true, modelEnabled: false } }),
+        );
+      if (path.includes("/analyses?"))
+        return new Response(JSON.stringify(page([])));
+      throw new Error(`unexpected request ${path}`);
+    });
+    vi.stubGlobal("fetch", fetcher);
+    render(<AnalysisPanel project={project} evidenceRevision={0} />);
+    await screen.findByText("还没有初筛版本");
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "新建人工版本" }));
+    await user.selectOptions(
+      screen.getByLabelText("为何受到关注 · 声明 1 类型"),
+      "FACT",
+    );
+    await user.clear(screen.getByLabelText("为何受到关注 · 声明 1 内容"));
+    await user.type(
+      screen.getByLabelText("为何受到关注 · 声明 1 内容"),
+      "近一周 star 翻倍。",
+    );
+    await user.click(screen.getByRole("button", { name: "保存人工版本" }));
+    expect((await screen.findByRole("alert")).textContent).toContain(
+      "「为何受到关注」声明 1 标为事实，需要至少引用一条证据",
+    );
+    expect(
+      fetcher.mock.calls.some(
+        ([, init]) => (init as RequestInit | undefined)?.method === "POST",
+      ),
+    ).toBe(false);
+  });
   it("runs an enabled model with public evidence only and polls its frozen version", async () => {
     const fetcher = vi.fn(async (path: string, options?: RequestInit) => {
       if (options?.method === "POST" && path.endsWith("/analysis-runs"))

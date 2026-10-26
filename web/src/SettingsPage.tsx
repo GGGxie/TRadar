@@ -143,6 +143,8 @@ export function SettingsPage() {
   );
 }
 
+const queuedMessage = "采集任务已进入队列";
+
 function SourceCard({
   source,
   activeRun,
@@ -165,6 +167,12 @@ function SourceCard({
   useEffect(() => {
     setDraft({ ...source.config });
   }, [source.revision, source.config]);
+
+  // 任务离开排队/进行中后，入队提示已过时，清除（#60）。
+  useEffect(() => {
+    if (!activeRun)
+      setMessage((current) => (current === queuedMessage ? "" : current));
+  }, [activeRun]);
 
   const availability = !draft.isEnabled
     ? "已停用"
@@ -225,7 +233,7 @@ function SourceCard({
       const response = await triggerIngestion(source.source, retryKey.current);
       retryKey.current = null;
       onRun(response.data);
-      setMessage("采集任务已进入队列");
+      setMessage(queuedMessage);
     } catch (reason) {
       setError(errorMessage(reason));
     } finally {

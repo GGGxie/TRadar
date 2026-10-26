@@ -60,7 +60,7 @@ MRR/ARR 的摘录仍保留币种、期间、原始措辞和声明主体，不将
 
 | 方法与路径 | 输入 | data 输出 |
 |---|---|---|
-| GET `/projects` | `q?:string, category?:enum, page?:int, pageSize?:int` | Project[]；默认 firstSeenAt 倒序再 id |
+| GET `/projects` | `q?:string, category?:enum, page?:int, pageSize?:int` | Project[]；默认 firstSeenAt 倒序再 id；q 像链接时（可省略协议）另按规范化链接匹配 canonicalUrl 与别名（[#60](https://github.com/GGGxie/TRadar/issues/60)），不发起请求 |
 | POST `/projects` | `{name,canonicalUrl,summary?:string,category?:enum}` + Idempotency-Key | Project；URL 已存在返回已有项目 200，否则 201 |
 | GET `/projects/{id}` | ID | Project |
 | PATCH `/projects/{id}` | `{name?,summary?,category?}` + If-Match | Project；不允许直接更改 ID/来源归属 |

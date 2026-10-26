@@ -90,6 +90,26 @@ func GetProject(ctx context.Context, q Querier, id string) (Project, error) {
 	return p, err
 }
 
+// searchLink 把看起来像链接的搜索词规范化；省略协议时按 https 处理。不发起任何请求。
+func searchLink(query string) (string, bool) {
+	query = strings.TrimSpace(query)
+	if strings.ContainsAny(query, " \t") || !strings.Contains(query, ".") {
+		return "", false
+	}
+	if !strings.Contains(query, "://") {
+		host, _, _ := strings.Cut(query, "/")
+		if !strings.Contains(host, ".") {
+			return "", false
+		}
+		query = "https://" + query
+	}
+	normalized, err := NormalizeURL(query)
+	if err != nil {
+		return "", false
+	}
+	return normalized, true
+}
+
 func ListProjects(ctx context.Context, q Querier, f ProjectFilter) ([]Project, int, error) {
 	if f.Page < 1 || f.PageSize < 1 || f.PageSize > 100 {
 		return nil, 0, fault.Field("page", "分页参数无效")
@@ -108,8 +128,14 @@ func ListProjects(ctx context.Context, q Querier, f ProjectFilter) ([]Project, i
 	}
 	if f.Query != "" {
 		term := "%" + strings.NewReplacer("\\", "\\\\", "%", "\\%", "_", "\\_").Replace(f.Query) + "%"
-		where += ` AND (name LIKE ? ESCAPE '\' OR summary LIKE ? ESCAPE '\')`
-		args = append(args, term, term)
+		if link, ok := searchLink(f.Query); ok {
+			// #60：粘贴的链接按规范化结果匹配项目链接或别名，同时保留文字匹配。
+			where += ` AND (name LIKE ? ESCAPE '\' OR summary LIKE ? ESCAPE '\' OR canonical_url=? OR id IN (SELECT project_id FROM project_aliases WHERE normalized_url=?))`
+			args = append(args, term, term, link, link)
+		} else {
+			where += ` AND (name LIKE ? ESCAPE '\' OR summary LIKE ? ESCAPE '\')`
+			args = append(args, term, term)
+		}
 	}
 	var total int
 	if err := q.QueryRowContext(ctx, "SELECT count(*) FROM projects"+where, args...).Scan(&total); err != nil {
