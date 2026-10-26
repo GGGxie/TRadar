@@ -16,7 +16,7 @@ import (
 )
 
 const runColumns = `id,status,revision,date,time_zone,cutoff_at,brief_id,error_code,created_at,finished_at`
-const briefColumns = `id,date,time_zone,version,cutoff_at,generated_at,previous_brief_id,selection_version,ranking_version,is_demo,coverage_json,empty_reason`
+const briefColumns = `id,date,time_zone,version,cutoff_at,generated_at,previous_brief_id,selection_version,ranking_version,is_demo,coverage_json,empty_reason,omitted_item_count`
 
 func ProcessRun(ctx context.Context, db *sql.DB, runID string, generatedAt time.Time) (Run, error) {
 	var completed Run
@@ -39,7 +39,7 @@ func ProcessRun(ctx context.Context, db *sql.DB, runID string, generatedAt time.
 		if err = validateFrozenInput(input, run); err != nil {
 			return err
 		}
-		items, emptyReason := SelectItems(input)
+		items, emptyReason, omitted := SelectItemsWithOmitted(input)
 		coverageJSON, err := json.Marshal(input.Coverage)
 		if err != nil {
 			return err
@@ -54,11 +54,12 @@ func ProcessRun(ctx context.Context, db *sql.DB, runID string, generatedAt time.
 			PreviousBriefID: input.PreviousBriefID, SelectionVersion: SelectionVersion,
 			RankingVersion: trends.AlgorithmVersion, IsDemo: false,
 			Items: items, Coverage: append([]Coverage{}, input.Coverage...), EmptyReason: emptyReason,
+			OmittedItemCount: omitted,
 		}
-		_, err = tx.ExecContext(ctx, `INSERT INTO daily_briefs(`+briefColumns+`) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`,
+		_, err = tx.ExecContext(ctx, `INSERT INTO daily_briefs(`+briefColumns+`) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 			brief.ID, brief.Date, brief.TimeZone, brief.Version, brief.CutoffAt, brief.GeneratedAt,
 			brief.PreviousBriefID, brief.SelectionVersion, brief.RankingVersion, brief.IsDemo,
-			string(coverageJSON), brief.EmptyReason)
+			string(coverageJSON), brief.EmptyReason, brief.OmittedItemCount)
 		if err != nil {
 			return err
 		}
@@ -231,7 +232,7 @@ func scanBrief(row interface{ Scan(...any) error }) (DailyBrief, error) {
 	var previous, emptyReason sql.NullString
 	var coverageJSON string
 	if err := row.Scan(&item.ID, &item.Date, &item.TimeZone, &item.Version, &item.CutoffAt, &item.GeneratedAt,
-		&previous, &item.SelectionVersion, &item.RankingVersion, &item.IsDemo, &coverageJSON, &emptyReason); err != nil {
+		&previous, &item.SelectionVersion, &item.RankingVersion, &item.IsDemo, &coverageJSON, &emptyReason, &item.OmittedItemCount); err != nil {
 		return DailyBrief{}, err
 	}
 	item.PreviousBriefID, item.EmptyReason = nullableString(previous), nullableString(emptyReason)

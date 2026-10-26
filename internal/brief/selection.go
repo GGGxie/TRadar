@@ -20,9 +20,15 @@ import (
 // SelectItems applies the frozen v1 selection rules. It performs no reads so a
 // queued run always produces a result from the snapshot accepted with it.
 func SelectItems(input FrozenInput) ([]BriefItem, *string) {
+	items, reason, _ := SelectItemsWithOmitted(input)
+	return items, reason
+}
+
+// SelectItemsWithOmitted 与 SelectItems 规则相同，另返回符合变化条件但因 maxItems 未收录的数量（#59）。
+func SelectItemsWithOmitted(input FrozenInput) ([]BriefItem, *string, int) {
 	if !input.HasData {
 		reason := "NO_DATA"
-		return []BriefItem{}, &reason
+		return []BriefItem{}, &reason, 0
 	}
 
 	type selected struct {
@@ -56,7 +62,9 @@ func SelectItems(input FrozenInput) ([]BriefItem, *string) {
 			trends.ProjectTrend{Project: right.candidate.Project, Trend: right.candidate.Trend},
 		)
 	})
+	omitted := 0
 	if input.MaxItems > 0 && len(selectedItems) > input.MaxItems {
+		omitted = len(selectedItems) - input.MaxItems
 		selectedItems = selectedItems[:input.MaxItems]
 	}
 
@@ -66,9 +74,9 @@ func SelectItems(input FrozenInput) ([]BriefItem, *string) {
 	}
 	if len(items) == 0 {
 		reason := "NO_NEW_CHANGES"
-		return items, &reason
+		return items, &reason, omitted
 	}
-	return items, nil
+	return items, nil, omitted
 }
 
 func changeReasons(candidate CandidateSnapshot, discoveryStartAt, cutoffAt string) []string {

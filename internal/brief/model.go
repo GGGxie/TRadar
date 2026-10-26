@@ -80,6 +80,8 @@ type DailyBrief struct {
 	Items            []BriefItem `json:"items"`
 	Coverage         []Coverage  `json:"coverage"`
 	EmptyReason      *string     `json:"emptyReason"`
+	// OmittedItemCount 是符合变化条件但因 maxItems 未收录的数量（#59）。
+	OmittedItemCount int `json:"omittedItemCount"`
 }
 
 type CreateInput struct {
