@@ -6,7 +6,8 @@ import (
 	"tradar/internal/trends"
 )
 
-const SelectionVersion = "brief-selection-v1"
+// brief-selection-v2（#35）：有评分 → 个人关注 → 当前关注度 → firstSeenAt；条目附项目简介与来源观测。
+const SelectionVersion = "brief-selection-v2"
 
 type Settings struct {
 	Revision  int    `json:"revision"`
@@ -49,6 +50,7 @@ type BriefItem struct {
 	ProjectRevision   int                `json:"projectRevision"`
 	Title             string             `json:"title"`
 	URL               string             `json:"url"`
+	Summary           string             `json:"summary"`
 	Reasons           []string           `json:"reasons"`
 	FactSummary       string             `json:"factSummary"`
 	HypothesisSummary *string            `json:"hypothesisSummary"`

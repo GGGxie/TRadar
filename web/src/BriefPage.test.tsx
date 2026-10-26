@@ -36,6 +36,7 @@ const brief: DailyBrief = {
       title: "Frozen Signal",
       url: "https://example.com/frozen",
       reasons: ["FIRST_COVERAGE"],
+      summary: "帮助开发者追踪有价值的变化",
       factSummary: "创始人自述：已有付费用户",
       hypothesisSummary: null,
       personalDecision: "OBSERVE",
@@ -138,6 +139,10 @@ describe("BriefPage", () => {
       await screen.findByRole("heading", { name: "Frozen Signal" }),
     ).toBeTruthy();
     expect(screen.getByText("创始人自述：已有付费用户")).toBeTruthy();
+    expect(screen.getByText("帮助开发者追踪有价值的变化")).toBeTruthy();
+    // 个人判断显示中文标签，而不是枚举值。
+    expect(screen.getByText("继续观察")).toBeTruthy();
+    expect(screen.queryByText("OBSERVE")).toBeNull();
     expect(
       screen.getByRole("link", { name: "下载 Markdown" }).getAttribute("href"),
     ).toContain("/markdown");

@@ -119,6 +119,76 @@ func TestRulesRunKeepsPrivateEvidenceLocalAndModelDisabled(t *testing.T) {
 	}
 }
 
+func TestRulesRunPlacesSourceDerivedEvidenceAsCitedFacts(t *testing.T) {
+	db := analysisDB(t)
+	ctx := context.Background()
+	now := time.Date(2026, 10, 23, 3, 0, 0, 0, time.UTC)
+	project := createAnalysisProject(t, db, "sourced", now)
+	founder := createAnalysisEvidence(t, db, project.ID, "FOUNDER_CLAIM", false, nil, now)
+	var derived catalog.DerivedEvidence
+	if err := storage.WithTx(ctx, db, func(tx *sql.Tx) error {
+		target := "https://github.com/acme/sourced"
+		source, _, err := catalog.UpsertSource(ctx, tx, catalog.UpsertSourceInput{
+			ProjectID: project.ID, Source: "GITHUB", ExternalID: "77", RecordType: "PROJECT",
+			URL: "https://api.github.com/repositories/77", TargetURL: &target, Title: "acme/sourced", Excerpt: "Agent toolkit", FetchedAt: now,
+		})
+		if err != nil {
+			return err
+		}
+		if _, err = catalog.AppendObservations(ctx, tx, "run-1", source.ID, []catalog.ObservationInput{{Metric: "STARS", Basis: "CUMULATIVE", Value: 1200, ObservedAt: now, FetchedAt: now}}); err != nil {
+			return err
+		}
+		derived, err = catalog.DeriveSourceEvidence(ctx, tx, project.ID, now)
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+	ids := []string{founder.ID}
+	for _, item := range derived.Evidence {
+		ids = append(ids, item.ID)
+	}
+	run := func(level string) View {
+		t.Helper()
+		var created Run
+		if err := storage.WithTx(ctx, db, func(tx *sql.Tx) error {
+			var err error
+			created, err = CreateRulesRun(ctx, tx, project.ID, CreateRunInput{Level: level, Mode: "RULES", ProjectRevision: project.Revision, EvidenceIDs: ids}, now.Add(time.Minute))
+			return err
+		}); err != nil {
+			t.Fatal(err)
+		}
+		view, err := GetVersion(ctx, db, *created.AnalysisID)
+		if err != nil || *view.RulesVersion != "rules-v2" || len(view.EvidenceSnapshots) != 3 {
+			t.Fatalf("%s view=%+v err=%v", level, view, err)
+		}
+		return view
+	}
+	screen := run("SCREEN")
+	what := screen.Sections[0].Claims
+	if len(what) != 1 || what[0].Kind != "FACT" || !strings.Contains(what[0].Text, "Agent toolkit") || len(what[0].EvidenceIDs) != 1 {
+		t.Fatalf("WHAT should cite the frozen source description: %+v", what)
+	}
+	attention := screen.Sections[2].Claims
+	if len(attention) != 2 || !strings.Contains(attention[0].Text, "Stars 1,200") || !strings.Contains(attention[1].Text, "未独立核实") {
+		t.Fatalf("ATTENTION should list metric then other evidence: %+v", attention)
+	}
+	for _, index := range []int{1, 3} {
+		if screen.Sections[index].Claims[0].Kind != "UNKNOWN" {
+			t.Fatalf("section %s must stay unknown: %+v", screen.Sections[index].Key, screen.Sections[index])
+		}
+	}
+	if !strings.Contains(strings.Join(screen.OpenQuestions, "\n"), "真实使用或付费") {
+		t.Fatalf("open questions=%v", screen.OpenQuestions)
+	}
+	deep := run("DEEP")
+	if !strings.Contains(deep.Sections[1].Claims[0].Text, "Agent toolkit") || !strings.Contains(deep.Sections[3].Claims[0].Text, "Stars 1,200") || !strings.Contains(deep.Sections[4].Claims[0].Text, "未独立核实") {
+		t.Fatalf("DEEP placement PRODUCT/GROWTH/BUSINESS: %+v", deep.Sections)
+	}
+	if deep.Sections[0].Claims[0].Kind != "HYPOTHESIS" {
+		t.Fatalf("NEED keeps the summary as hypothesis: %+v", deep.Sections[0])
+	}
+}
+
 func TestSourceReassociationMarksHistoryAndRejectsNewReference(t *testing.T) {
 	db := analysisDB(t)
 	ctx := context.Background()

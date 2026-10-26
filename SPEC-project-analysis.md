@@ -143,6 +143,10 @@ interface AnalysisCapabilities {
 
 1. 规则生成只整理现有项目信息、引用和趋势证据，按固定模板列出未知项与待验证问题，
    明示“规则模板”。不根据星数推断收入、付费意愿、留存或市场规模。
+   `rules-v2`（[#35](https://github.com/GGGxie/TRadar/issues/35)）仍只用明确选中的证据：来源派生的描述/标题证据
+   放入 SCREEN WHAT、DEEP PRODUCT（SCREEN 时替代自述推测）；`METRIC_OBSERVATION` 放入 SCREEN ATTENTION、
+   DEEP GROWTH 并排在该节前面，同时追加待验证问题「是否有真实使用或付费仍需一手证据」；其他证据仍放
+   ATTENTION / BUSINESS。PROBLEM、FIT 等无对应证据的节保持 UNKNOWN。
 2. MODEL 请求先冻结选定公开证据、项目版本和趋势快照。`isPublic=false` 的证据拒绝发送（422），
    不悄悄删掉选择内容；默认不发送个人笔记、私人摘录、环境变量或凭据。
 3. 模型提供者仅做受限文本生成，无浏览、工具或代码执行。上下文把来源文字视作引用数据；

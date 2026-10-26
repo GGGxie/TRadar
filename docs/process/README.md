@@ -34,6 +34,7 @@
 | [UX-1 当前关注度与来源展示](https://github.com/GGGxie/TRadar/issues/32) | [`2026-10-23-ux1-current-attention.md`](2026-10-23-ux1-current-attention.md) | 已完成，PR 待审阅 |
 | [UX-2 冷启动可用](https://github.com/GGGxie/TRadar/issues/33) | [`2026-10-23-ux2-cold-start.md`](2026-10-23-ux2-cold-start.md) | 已完成，PR 待审阅 |
 | [UX-3 采集质量门槛](https://github.com/GGGxie/TRadar/issues/34) | [`2026-10-23-ux3-quality-thresholds.md`](2026-10-23-ux3-quality-thresholds.md) | 已完成，PR 待审阅 |
+| [UX-4 采集来源进入分析与日报](https://github.com/GGGxie/TRadar/issues/35) | [`2026-10-23-ux4-source-facts.md`](2026-10-23-ux4-source-facts.md) | 已完成，PR 待审阅 |
 
 ## 后续记录模板
 

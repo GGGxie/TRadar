@@ -623,3 +623,51 @@ func TestRadarHTTPOrdersAccumulatingProjectsByCurrentAttention(t *testing.T) {
 		t.Fatalf("attention=%+v", top)
 	}
 }
+
+func TestEvidenceFromSourcesHTTPIsIdempotentAndPublic(t *testing.T) {
+	handler, db := testServerWithDB(t)
+	ctx := context.Background()
+	now := time.Now().UTC().Add(-time.Minute)
+	var projectID string
+	err := storage.WithTx(ctx, db, func(tx *sql.Tx) error {
+		project, _, err := catalog.CreateProject(ctx, tx, catalog.CreateProjectInput{Name: "acme/tool", CanonicalURL: "https://github.com/acme/tool"}, now)
+		if err != nil {
+			return err
+		}
+		projectID = project.ID
+		target := "https://github.com/acme/tool"
+		source, _, err := catalog.UpsertSource(ctx, tx, catalog.UpsertSourceInput{
+			ProjectID: project.ID, Source: "GITHUB", ExternalID: "7", RecordType: "PROJECT",
+			URL: "https://api.github.com/repositories/7", TargetURL: &target, Title: "acme/tool", Excerpt: "A tool", FetchedAt: now,
+		})
+		if err != nil {
+			return err
+		}
+		_, err = catalog.AppendObservations(ctx, tx, "run-1", source.ID, []catalog.ObservationInput{{Metric: "STARS", Basis: "CUMULATIVE", Value: 50, ObservedAt: now, FetchedAt: now}})
+		return err
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := "/api/v1/projects/" + projectID + "/evidence/from-sources"
+	missingKey := call(handler, http.MethodPost, path, `{}`, "", "")
+	if missingKey.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("missing idempotency key: %d %s", missingKey.Code, missingKey.Body)
+	}
+	first := call(handler, http.MethodPost, path, `{}`, "derive-1", "")
+	if first.Code != http.StatusCreated || !strings.Contains(first.Body.String(), `"created":2`) || !strings.Contains(first.Body.String(), `"kind":"METRIC_OBSERVATION"`) {
+		t.Fatalf("first derive: %d %s", first.Code, first.Body)
+	}
+	again := call(handler, http.MethodPost, path, `{}`, "derive-2", "")
+	if again.Code != http.StatusOK || !strings.Contains(again.Body.String(), `"created":0`) {
+		t.Fatalf("repeat derive: %d %s", again.Code, again.Body)
+	}
+	list := call(handler, http.MethodGet, "/api/v1/projects/"+projectID+"/evidence", "", "", "")
+	if !strings.Contains(list.Body.String(), `"totalItems":2`) || strings.Contains(list.Body.String(), `"isPublic":false`) {
+		t.Fatalf("evidence list: %s", list.Body)
+	}
+	wrongMethod := call(handler, http.MethodGet, path, "", "", "")
+	if wrongMethod.Code != http.StatusMethodNotAllowed {
+		t.Fatalf("GET derive: %d", wrongMethod.Code)
+	}
+}

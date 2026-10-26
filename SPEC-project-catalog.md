@@ -66,10 +66,15 @@ MRR/ARR 的摘录仍保留币种、期间、原始措辞和声明主体，不将
 | PATCH `/source-records/{id}` | `{projectId,reason}` + If-Match | SourceRecord；关联和审计事件同事务提交 |
 | GET `/projects/{id}/evidence` | `asOf?:Timestamp, page?, pageSize?` | Evidence[]；排除该时点尚未产生的版本 |
 | POST `/projects/{id}/evidence` | `{url,title,excerpt,kind,publisher?,publishedAt?,isPublic?:bool,sourceRecordId?,supersedesId?}` + Idempotency-Key | Evidence；不自动抓取 URL |
+| POST `/projects/{id}/evidence/from-sources` | `{}` + Idempotency-Key | `{created:int,evidence:Evidence[]}`；新建时 201，否则 200（[#35](https://github.com/GGGxie/TRadar/issues/35)） |
 | GET `/projects/{id}/observations` | `sourceRecordId?:ID, metric?:enum,basis?:enum,from?:Timestamp,to?:Timestamp,page?,pageSize?` | Observation[]，时间升序再 id；窗口最长 90 天 |
 
 人工作品的 `canonicalUrl` 作为 MANUAL 来源对象规范 URL；链接录入不隐式认定为已验证外部数据。
 POST evidence 不接受客户端伪造自动指标观测，`METRIC_OBSERVATION` 只由内部采集/证据派生接口创建。
+`from-sources` 是该派生接口：来源记录会被采集原地更新，因此把当前状态冻结为公开证据并保留 sourceRecordId——
+有描述的 GitHub/PH 来源生成 `OFFICIAL_DESCRIPTION`，HN 标题生成 `PUBLIC_EXCERPT`，每条来源在请求时刻之前
+最新的累计指标生成一条 `METRIC_OBSERVATION`（引用真实 observation ID，正文注明「累计量只说明关注度」）。
+相同来源、类型和正文的证据不重复创建；不访问来源 URL，不写入任何推断数字。
 不同项目复用 supersedesId/sourceRecordId 返回 422；用户新增 evidence 不可填任意 collectedAt。
 
 模块向 ingestion 暴露 `UpsertSource(ctx, input) -> SourceRecord`、

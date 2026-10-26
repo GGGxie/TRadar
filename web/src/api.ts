@@ -399,6 +399,8 @@ export interface BriefItem {
   projectRevision: number;
   title: string;
   url: string;
+  // brief-selection-v2 起提供；旧日报没有该字段。
+  summary?: string;
   reasons: BriefReason[];
   factSummary: string;
   hypothesisSummary: string | null;
@@ -723,6 +725,16 @@ export function saveExperiment(
 }
 export function listSources(signal?: AbortSignal) {
   return request<Page<SourceView>>("/sources?page=1&pageSize=20", { signal });
+}
+export function deriveSourceEvidence(projectId: string, key: string) {
+  return request<Resource<{ created: number; evidence: Evidence[] }>>(
+    `/projects/${encodeURIComponent(projectId)}/evidence/from-sources`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Idempotency-Key": key },
+      body: "{}",
+    },
+  );
 }
 export function getSource(source: RemoteSource, signal?: AbortSignal) {
   return request<Resource<SourceView>>(`/sources/${source}`, { signal });

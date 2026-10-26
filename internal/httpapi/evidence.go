@@ -67,3 +67,26 @@ func (s *Server) projectEvidence(w http.ResponseWriter, r *http.Request) {
 		methodError(w, r)
 	}
 }
+
+// projectEvidenceFromSources 把项目当前的自动来源冻结为公开证据（SPEC-project-catalog：
+// METRIC_OBSERVATION 只由内部派生接口创建）。请求体为空对象；内容相同的证据不会重复创建。
+func (s *Server) projectEvidenceFromSources(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		methodError(w, r)
+		return
+	}
+	projectID := r.PathValue("id")
+	var input struct{}
+	if err := decode(r, &input); err != nil {
+		writeError(w, r, err)
+		return
+	}
+	s.mutate(w, r, "evidence:from-sources:"+projectID, input, func(tx *sql.Tx) (int, any, error) {
+		derived, err := catalog.DeriveSourceEvidence(r.Context(), tx, projectID, s.now())
+		status := http.StatusOK
+		if derived.Created > 0 {
+			status = http.StatusCreated
+		}
+		return status, derived, err
+	})
+}
