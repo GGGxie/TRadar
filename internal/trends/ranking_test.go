@@ -39,6 +39,9 @@ func TestComputeProjectCountsPlatformsWithoutAddingDuplicateDiscussions(t *testi
 	if !result.IsPartial || result.Components.Persistence != nil {
 		t.Fatalf("missing persistence must remain explicit: %+v", result)
 	}
+	if len(result.Explanations) == 0 || result.Explanations[0] != "主信号采用 GitHub Stars 的观测期净变化。" {
+		t.Fatalf("explanations must use display names: %v", result.Explanations)
+	}
 }
 
 func TestSortProjectTrendsIsStableForScoredAndAccumulatingGroups(t *testing.T) {

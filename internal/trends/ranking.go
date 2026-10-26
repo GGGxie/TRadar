@@ -142,7 +142,7 @@ func ComputeProject(project catalog.Project, records []catalog.SourceRecord, obs
 	score := math.Round((growthScore+result.Components.CrossSource+persistenceScore)*10) / 10
 	result.Score = &score
 	result.Explanations = append(result.Explanations,
-		fmt.Sprintf("主信号采用 %s %s 的观测期净变化。", primary.record.Source, primary.metric),
+		fmt.Sprintf("主信号采用 %s %s 的观测期净变化。", sourceDisplayNames[primary.record.Source], metricDisplayNames[primary.metric]),
 		fmt.Sprintf("过去 7 天关联到 %d 个独立自动来源平台。", len(result.CrossSource.Platforms)),
 	)
 	if result.IsPartial {
@@ -151,6 +151,10 @@ func ComputeProject(project catalog.Project, records []catalog.SourceRecord, obs
 	result.Alert, _ = acceleratingAlert(primary, observations, asOf.UTC(), window)
 	return result, nil
 }
+
+// 解释文字面向用户，使用平台与指标的显示名称而不是枚举值（#47）。
+var sourceDisplayNames = map[string]string{"GITHUB": "GitHub", "HACKER_NEWS": "Hacker News", "PRODUCT_HUNT": "Product Hunt"}
+var metricDisplayNames = map[string]string{"STARS": "Stars", "POINTS": "分数", "VOTES": "票数"}
 
 func growthComponent(source string, rate float64) float64 {
 	scale := map[string]float64{"GITHUB": 1000, "HACKER_NEWS": 100, "PRODUCT_HUNT": 100}[source]
