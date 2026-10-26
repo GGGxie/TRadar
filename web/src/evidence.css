@@ -130,3 +130,13 @@
     flex: 1;
   }
 }
+
+/* 已被新版本替代的证据：保留可读，但视觉上降级（#46）。 */
+.evidence-list article.superseded h3,
+.evidence-list article.superseded blockquote {
+  color: var(--muted);
+}
+.version-tag {
+  background: #f4f1e8;
+  color: #6b5a2e;
+}

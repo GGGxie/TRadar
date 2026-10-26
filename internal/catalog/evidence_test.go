@@ -77,6 +77,55 @@ func TestEvidenceVersionsStayImmutableAndRespectHistory(t *testing.T) {
 	}
 }
 
+func TestCurrentEvidenceExcludesSupersededVersionsAsOfCutoff(t *testing.T) {
+	db, err := storage.Open(filepath.Join(t.TempDir(), "radar.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	ctx := context.Background()
+	now := time.Date(2026, 10, 23, 4, 0, 0, 0, time.UTC)
+	var project Project
+	var original, revised Evidence
+	err = storage.WithTx(ctx, db, func(tx *sql.Tx) error {
+		var err error
+		if project, _, err = CreateProject(ctx, tx, CreateProjectInput{Name: "Versions", CanonicalURL: "https://versions.test"}, now); err != nil {
+			return err
+		}
+		if original, err = CreateEvidence(ctx, tx, project.ID, CreateEvidenceInput{URL: "https://versions.test/a", Title: "原文", Excerpt: "第一版", Kind: "PUBLIC_EXCERPT"}, now); err != nil {
+			return err
+		}
+		revised, err = CreateEvidence(ctx, tx, project.ID, CreateEvidenceInput{URL: "https://versions.test/a", Title: "原文", Excerpt: "第二版", Kind: "PUBLIC_EXCERPT", SupersedesID: &original.ID}, now.Add(time.Hour))
+		return err
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	current, total, err := ListEvidence(ctx, db, project.ID, EvidenceFilter{CurrentOnly: true, Page: 1, PageSize: 20})
+	if err != nil || total != 1 || len(current) != 1 || current[0].ID != revised.ID {
+		t.Fatalf("current=%+v total=%d err=%v", current, total, err)
+	}
+	// 修订发生之前的截止时间：旧版仍是当时的当前版本。
+	before := now.Add(30 * time.Minute)
+	historical, _, err := ListEvidence(ctx, db, project.ID, EvidenceFilter{CurrentOnly: true, AsOf: &before, Page: 1, PageSize: 20})
+	if err != nil || len(historical) != 1 || historical[0].ID != original.ID {
+		t.Fatalf("historical current=%+v err=%v", historical, err)
+	}
+	all, total, err := ListEvidence(ctx, db, project.ID, EvidenceFilter{Page: 1, PageSize: 20})
+	if err != nil || total != 2 || len(all) != 2 {
+		t.Fatalf("all versions=%d err=%v", total, err)
+	}
+	// 已有新版本的证据不能再分叉修订。
+	err = storage.WithTx(ctx, db, func(tx *sql.Tx) error {
+		_, err := CreateEvidence(ctx, tx, project.ID, CreateEvidenceInput{URL: "https://versions.test/a", Title: "原文", Excerpt: "分叉", Kind: "PUBLIC_EXCERPT", SupersedesID: &original.ID}, now.Add(2*time.Hour))
+		return err
+	})
+	var problem *fault.Error
+	if !errors.As(err, &problem) || problem.Fields["supersedesId"] == "" {
+		t.Fatalf("branching revision accepted: %v", err)
+	}
+}
+
 func TestEvidenceRejectsCrossProjectAndSyntheticMetricClaims(t *testing.T) {
 	db, err := storage.Open(filepath.Join(t.TempDir(), "radar.db"))
 	if err != nil {

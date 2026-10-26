@@ -152,7 +152,8 @@ func allProjects(ctx context.Context, q catalog.Querier) ([]catalog.Project, err
 func freezeEvidence(ctx context.Context, q catalog.Querier, projectID string, cutoff time.Time) ([]catalog.Evidence, error) {
 	items := make([]catalog.Evidence, 0)
 	for page := 1; ; page++ {
-		batch, total, err := catalog.ListEvidence(ctx, q, projectID, catalog.EvidenceFilter{AsOf: &cutoff, Page: page, PageSize: 100})
+		// 只冻结截止时刻的当前版本；已被修订替代的旧版不再作为事实来源（#46）。
+		batch, total, err := catalog.ListEvidence(ctx, q, projectID, catalog.EvidenceFilter{AsOf: &cutoff, CurrentOnly: true, Page: page, PageSize: 100})
 		if err != nil {
 			return nil, err
 		}

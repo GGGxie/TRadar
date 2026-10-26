@@ -34,7 +34,9 @@
 证据种类 `METRIC_OBSERVATION/OFFICIAL_DESCRIPTION/OFFICIAL_PRICING/FOUNDER_CLAIM/THIRD_PARTY_ESTIMATE/PUBLIC_EXCERPT`。
 种类说明声明来源，不自动赋予真实性。证据若引用数值，包含相应 Observation IDs；
 MRR/ARR 的摘录仍保留币种、期间、原始措辞和声明主体，不将自述提升为审计事实。
-证据修改通过新增 `supersedesId` 版本表达；历史引用保留原内容。
+证据修改通过新增 `supersedesId` 版本表达；历史引用保留原内容。版本是一条直线：已有新版本的证据
+不能再次被修订（422 `supersedesId`）。读取时附 `supersededBy`；`GET evidence?current=true` 只返回截止时刻的当前版本，
+新分析、实践引用与日报冻结只使用当前版本，已冻结的历史快照不变（[#46](https://github.com/GGGxie/TRadar/issues/46)）。
 
 ## 身份与关联行为
 

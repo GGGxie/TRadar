@@ -521,7 +521,8 @@ func TestHackerNewsSkipsNewLowPointStoriesButRefreshesKnownOnes(t *testing.T) {
 func TestGitHubSearchQuotaDoesNotBlockCoreRequests(t *testing.T) {
 	db := openTestDB(t)
 	ctx := context.Background()
-	now := time.Date(2026, 10, 23, 7, 15, 0, 0, time.UTC)
+	// 设置页预算视图读取真实时钟，因此这里用当前时间，避免结果随墙钟漂移。
+	now := time.Now().UTC().Truncate(time.Second)
 	reset := strconv.FormatInt(now.Add(time.Minute).Unix(), 10)
 	historyCalls := 0
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
