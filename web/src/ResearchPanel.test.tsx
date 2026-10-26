@@ -23,6 +23,47 @@ afterEach(() => {
 });
 
 describe("ResearchPanel", () => {
+  it("describes a scheduled next step that has no action text yet", async () => {
+    // #57：只设时间时，详情与表单都要说明「还没写具体行动」，不再自相矛盾。
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({
+              data: {
+                id: "r1",
+                projectId: "p1",
+                isStarred: false,
+                tags: [],
+                stage: "SCREENING",
+                decision: "OBSERVE",
+                rationale: "",
+                notes: "",
+                nextAction: "",
+                nextActionAt: "2026-10-24T02:00:00Z",
+                revision: 1,
+                createdAt: "2026-10-16T02:00:00Z",
+                updatedAt: "2026-10-16T02:00:00Z",
+                starredAt: null,
+              },
+            }),
+          ),
+      ),
+    );
+    render(<ResearchPanel project={project} />);
+    expect(await screen.findByText("已定时间，尚未写具体行动。")).toBeTruthy();
+    expect(screen.queryByText("尚未安排下一步。")).toBeNull();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "编辑个人研究" }));
+    expect(
+      screen.getByText("已设置下一步时间，建议写下到时具体要做什么。"),
+    ).toBeTruthy();
+    await user.type(screen.getByLabelText("下一步行动"), "复查定价页");
+    expect(
+      screen.queryByText("已设置下一步时间，建议写下到时具体要做什么。"),
+    ).toBeNull();
+  });
   it("creates a personal research entry with one stable intent", async () => {
     const calls: Array<[string, RequestInit | undefined]> = [];
     const fetcher = vi.fn(async (path: string, options?: RequestInit) => {
