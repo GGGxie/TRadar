@@ -745,6 +745,31 @@ export function deriveSourceEvidence(projectId: string, key: string) {
     },
   );
 }
+// 普通 <a download> 不会带访问令牌；用带凭据的请求取回文件，再交给浏览器保存（#45）。
+export async function downloadBriefMarkdown(briefId: string) {
+  const path = `/api/v1/briefs/${encodeURIComponent(briefId)}/markdown`;
+  const response = await fetch(path, withAccessToken({}));
+  if (!response.ok) {
+    if (response.status === 401) {
+      clearAccessToken();
+      window.dispatchEvent(new Event(UNAUTHORIZED_EVENT));
+    }
+    throw new ApiError(
+      "Markdown 下载失败，请稍后重试。",
+      response.status,
+      "DOWNLOAD_FAILED",
+    );
+  }
+  const disposition = response.headers.get("Content-Disposition") ?? "";
+  const filename =
+    /filename="([^"]+)"/.exec(disposition)?.[1] ?? `tradar-brief-${briefId}.md`;
+  const url = URL.createObjectURL(await response.blob());
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(url);
+}
 export function getSource(source: RemoteSource, signal?: AbortSignal) {
   return request<Resource<SourceView>>(`/sources/${source}`, { signal });
 }
