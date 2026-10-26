@@ -30,6 +30,7 @@ const brief: DailyBrief = {
   rankingVersion: "trend-v1",
   isDemo: false,
   emptyReason: null,
+  omittedItemCount: 0,
   coverage: [
     { source: "GITHUB", latestCollectedAt: null, state: "NO_DATA" },
     { source: "HACKER_NEWS", latestCollectedAt: null, state: "NO_DATA" },
@@ -171,6 +172,31 @@ describe("BriefPage", () => {
       .closest("article")!;
     expect(la.textContent).toContain("截止 10/15 17:30（America/Los_Angeles）");
     expect(document.body.textContent).not.toContain("T00:30:00");
+  });
+
+  it("says how many qualifying projects the item limit left out", async () => {
+    // #59：被最多项目上限截掉的候选要有说明，不列明细。
+    const capped = { ...brief, id: "b-cap", omittedItemCount: 3 };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: RequestInfo | URL) => {
+        const path = String(input);
+        if (path.endsWith("/brief-settings")) return json({ data: settings });
+        if (path.includes("/briefs?page="))
+          return json({
+            data: [capped],
+            pagination: { page: 1, pageSize: 20, totalItems: 1, totalPages: 1 },
+          });
+        throw new Error(`unexpected request ${path}`);
+      }),
+    );
+    render(<BriefPage />);
+    const card = (
+      await screen.findByRole("heading", { name: "2026-10-16 · 版本 1" })
+    ).closest("article")!;
+    expect(card.textContent).toContain(
+      "另有 3 个符合条件的项目因上限 1 未收录",
+    );
   });
 
   it("downloads Markdown with the access token and the server filename", async () => {

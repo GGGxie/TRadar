@@ -430,6 +430,8 @@ export interface DailyBrief {
   items: BriefItem[];
   coverage: BriefCoverage[];
   emptyReason: "NO_DATA" | "NO_NEW_CHANGES" | null;
+  /** 符合变化条件但因最多项目上限未收录的数量（#59）。 */
+  omittedItemCount: number;
 }
 export interface BriefRun {
   id: string;

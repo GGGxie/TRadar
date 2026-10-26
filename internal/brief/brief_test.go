@@ -339,3 +339,34 @@ func containsID(values []string, target string) bool { return containsReason(val
 func containsText(value, target string) bool {
 	return len(target) > 0 && strings.Contains(value, target)
 }
+
+// #59：因 maxItems 未收录的数量冻结在版本里，读取与列表都能看到。
+func TestBriefRecordsCandidatesOmittedByMaxItems(t *testing.T) {
+	db := briefDB(t)
+	ctx := context.Background()
+	now := time.Date(2026, 10, 16, 2, 0, 0, 0, time.UTC)
+	for _, name := range []string{"alpha", "beta", "gamma"} {
+		project := createBriefProject(t, db, name, "AI_AGENT", now.Add(-time.Hour))
+		upsertBriefSource(t, db, project.ID, "GITHUB", "src-"+name, now.Add(-30*time.Minute))
+	}
+	limit := 2
+	if _, err := UpdateSettings(ctx, db, 1, SettingsPatch{MaxItems: &limit}); err != nil {
+		t.Fatal(err)
+	}
+	run := acceptRun(t, db, CreateInput{Date: "2026-10-16", TimeZone: "Asia/Shanghai"}, now)
+	if _, err := ProcessRun(ctx, db, run.ID, now.Add(time.Second)); err != nil {
+		t.Fatal(err)
+	}
+	stored, _ := GetRun(ctx, db, run.ID)
+	brief, err := GetBrief(ctx, db, *stored.BriefID)
+	if err != nil || len(brief.Items) != 2 || brief.OmittedItemCount != 1 {
+		t.Fatalf("brief items=%d omitted=%d err=%v", len(brief.Items), brief.OmittedItemCount, err)
+	}
+	listed, _, err := ListBriefs(ctx, db, BriefFilter{Page: 1, PageSize: 20})
+	if err != nil || len(listed) != 1 || listed[0].OmittedItemCount != 1 {
+		t.Fatalf("listed=%+v err=%v", listed, err)
+	}
+	if markdown := RenderMarkdown(brief); !strings.Contains(markdown, "另有 1 个符合条件的项目因上限 2 未收录") {
+		t.Fatalf("markdown missing omitted note:\n%s", markdown)
+	}
+}

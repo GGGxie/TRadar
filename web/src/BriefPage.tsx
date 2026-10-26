@@ -430,6 +430,13 @@ function BriefCard({
         </div>
       ) : (
         <div className="brief-items">
+          {brief.omittedItemCount > 0 && (
+            <p className="brief-omitted" role="note">
+              另有 {brief.omittedItemCount} 个符合条件的项目因上限{" "}
+              {brief.items.length}{" "}
+              未收录；下次生成仍可入选，如需一次看全可在上方调高「最多项目」。
+            </p>
+          )}
           {brief.items.map((item) => (
             <section key={item.projectId} className="brief-item">
               <div className="brief-item-heading">

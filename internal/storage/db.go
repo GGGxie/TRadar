@@ -16,7 +16,7 @@ import (
 //go:embed migrations/*.sql
 var migrations embed.FS
 
-const schemaVersion = 12
+const schemaVersion = 13
 
 // Open opens one local database. A single SQL connection serializes short writes.
 func Open(path string) (*sql.DB, error) {

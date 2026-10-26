@@ -225,3 +225,19 @@
     padding: 12px 16px;
   }
 }
+
+/* 因最多项目上限未收录的说明（#59） */
+.brief-omitted {
+  background: #f8f2e5;
+  border-bottom: 1px solid var(--border);
+  color: #725d2f;
+  font-size: 12px;
+  line-height: 1.7;
+  margin: 0;
+  padding: 12px 24px;
+}
+@media (max-width: 720px) {
+  .brief-omitted {
+    padding: 12px 16px;
+  }
+}

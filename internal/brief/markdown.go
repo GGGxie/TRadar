@@ -30,6 +30,15 @@ var coverageLabels = map[string]string{
 	"AVAILABLE": "已有新鲜数据", "STALE": "数据超过 24 小时", "NO_DATA": "尚无数据",
 }
 
+// OmittedNote 说明因最多项目上限未收录的候选（#59）；截断时收录数恰等于上限。
+func OmittedNote(brief DailyBrief) string {
+	if brief.OmittedItemCount <= 0 {
+		return ""
+	}
+	return fmt.Sprintf("另有 %d 个符合条件的项目因上限 %d 未收录；它们的变化不会因此被记为已推荐，下次生成仍可入选。",
+		brief.OmittedItemCount, len(brief.Items))
+}
+
 // localMinute 把 UTC 时间戳按日报时区显示到分钟（#58）；无法解析时原样返回。
 func localMinute(value, timeZone string) string {
 	parsed, err := time.Parse(time.RFC3339Nano, value)
@@ -81,6 +90,9 @@ func RenderMarkdown(brief DailyBrief) string {
 		}
 		output.WriteString(reason + "\n")
 		return output.String()
+	}
+	if note := OmittedNote(brief); note != "" {
+		output.WriteString("> " + note + "\n\n")
 	}
 	for index, item := range brief.Items {
 		output.WriteString(fmt.Sprintf("### %d. %s\n\n", index+1, escapeMarkdownText(item.Title)))

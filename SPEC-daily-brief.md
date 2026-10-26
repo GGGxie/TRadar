@@ -110,7 +110,9 @@ DailyBrief 与 BriefItem 不可变，没有 PATCH / DELETE；显式重新生成�
    不含生成时间、采集时间、快照 ID 或排行榜名次。只有时间刷新、相同内容重复采集、
    微小累计值增加或版本号增加都不构成新变化。证据内容是否不同按 catalog 不可变正文哈希判断，
    商业 / 需求类别是证据元数据或用户标注，不通过模型临时推断。
-5. 对符合变化条件的候选稳定取前 maxItems；理由保留全部命中的项。`brief-selection-v2`
+5. 对符合变化条件的候选稳定取前 maxItems；理由保留全部命中的项。因上限未收录的数量冻结为
+   `omittedItemCount`（迁移 013，旧版本为 0），站内与 Markdown 写明「另有 N 个…因上限 M 未收录」，不列明细
+   （[#59](https://github.com/GGGxie/TRadar/issues/59)）。`brief-selection-v2`
    （[#35](https://github.com/GGGxie/TRadar/issues/35)）排序：有增长评分组按趋势模块规则在前；无评分组中已收藏或
    命中 RESEARCH_CHANGE 的个人关注项目在前；其后按趋势模块的当前关注度、firstSeenAt、projectId。
    条目 `summary` 为冻结时的项目简介（≤500 字）。`factSummary` 优先摘要首条正文与简介不同的证据；无此类证据时只陈述冻结趋势快照中的

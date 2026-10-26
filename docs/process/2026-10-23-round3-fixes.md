@@ -45,3 +45,13 @@
   「2026-10-23 17:17（Asia/Shanghai；UTC 2026-10-23T09:17:26Z）」。
 - **工具问题**：构建与启动服务放在同一批调用，服务再次早于二进制 1 秒启动，第一次 Markdown 仍是旧格式；
   分开两轮后结果正确。
+
+## #59 日报截断说明（2026-10-26 继续）
+- **实现**：`SelectItemsWithOmitted` 与原规则共用排序和截断，另返回未收录数；`SelectItems` 保持原签名。
+  迁移 013 为 `daily_briefs` 增加 `omitted_item_count`（默认 0，旧版本不回填），`DailyBrief.omittedItemCount` 随版本冻结。
+  截断时收录数恰等于当时上限，因此说明中的上限 M 用收录数表示，无需另存设置。
+  站内在项目列表前显示「另有 N 个符合条件的项目因上限 M 未收录…」，Markdown 以引用行输出。
+- **TDD**：`TestSelectionCountsCandidatesOmittedByMaxItems`、`TestBriefRecordsCandidatesOmittedByMaxItems`
+  （含 Markdown 断言）先因函数 / 字段未定义编译失败后通过；`BriefPage.test.tsx`「says how many qualifying projects…」先失败后通过。
+- **真实验证**：临时库升级到 schema 13，原 7 个版本未收录数为 0 且不显示说明；上限设为 1 生成 2026-10-26 版本 1：
+  收录 1 项，显示「另有 25 个…因上限 1 未收录」，Markdown 同样；axe 无违规；验证后上限改回 2。

@@ -155,3 +155,24 @@ func trendWithScore(id string, score, rate, duration *float64) trends.TrendResul
 		CrossSource:   trends.CrossSourceResult{Platforms: []string{"GITHUB"}, SourceRecordIDs: []string{"source-" + id}}, Explanations: []string{},
 	}
 }
+
+// #59：符合条件但因 maxItems 未收录的数量随版本冻结；不改变选择与排序。
+func TestSelectionCountsCandidatesOmittedByMaxItems(t *testing.T) {
+	input := FrozenInput{
+		CutoffAt: "2026-10-16T00:00:00.000000000Z", DiscoveryStartAt: "2026-10-15T00:00:00.000000000Z",
+		MaxItems: 2, HasData: true,
+		Candidates: []CandidateSnapshot{candidate("a", "2026-10-15T12:00:00.000000000Z", nil, nil, nil), candidate("b", "2026-10-15T13:00:00.000000000Z", nil, nil, nil), candidate("c", "2026-10-15T14:00:00.000000000Z", nil, nil, nil)},
+	}
+	items, empty, omitted := SelectItemsWithOmitted(input)
+	if empty != nil || len(items) != 2 || omitted != 1 {
+		t.Fatalf("items=%d empty=%v omitted=%d", len(items), empty, omitted)
+	}
+	plain, _ := SelectItems(input)
+	if plain[0].ProjectID != items[0].ProjectID || plain[1].ProjectID != items[1].ProjectID {
+		t.Fatalf("selection changed: %v vs %v", plain, items)
+	}
+	input.MaxItems = 5
+	if _, _, omitted = SelectItemsWithOmitted(input); omitted != 0 {
+		t.Fatalf("nothing should be omitted under the limit, got %d", omitted)
+	}
+}
