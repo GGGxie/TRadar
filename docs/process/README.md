@@ -33,6 +33,7 @@
 | [浏览器访问令牌闭环](https://github.com/GGGxie/TRadar/issues/29) | [`2026-10-20-browser-access-token.md`](2026-10-20-browser-access-token.md) | 进行中，PR 待审阅 |
 | [UX-1 当前关注度与来源展示](https://github.com/GGGxie/TRadar/issues/32) | [`2026-10-23-ux1-current-attention.md`](2026-10-23-ux1-current-attention.md) | 已完成，PR 待审阅 |
 | [UX-2 冷启动可用](https://github.com/GGGxie/TRadar/issues/33) | [`2026-10-23-ux2-cold-start.md`](2026-10-23-ux2-cold-start.md) | 已完成，PR 待审阅 |
+| [UX-3 采集质量门槛](https://github.com/GGGxie/TRadar/issues/34) | [`2026-10-23-ux3-quality-thresholds.md`](2026-10-23-ux3-quality-thresholds.md) | 已完成，PR 待审阅 |
 
 ## 后续记录模板
 

@@ -192,9 +192,11 @@ function SourceCard({
       patch.discoveryDays = draft.discoveryDays;
       patch.candidatesPerKeyword = draft.candidatesPerKeyword;
       patch.requestBudgetPerHour = draft.requestBudgetPerHour;
+      patch.minStars = draft.minStars;
     } else if (source.source === "HACKER_NEWS") {
       patch.feeds = draft.feeds;
       patch.itemsPerFeed = draft.itemsPerFeed;
+      patch.minPoints = draft.minPoints;
     } else {
       patch.discoveryDays = draft.discoveryDays;
       patch.maxPages = draft.maxPages;
@@ -421,6 +423,23 @@ function GitHubFields({
           }
         />
       </label>
+      <div className="field-with-help">
+        <label>
+          最低 Stars（新候选）
+          <input
+            type="number"
+            min="0"
+            max="100000"
+            value={draft.minStars ?? 20}
+            aria-describedby="github-min-stars-help"
+            onChange={(event) => set("minStars", Number(event.target.value))}
+          />
+        </label>
+        <small id="github-min-stars-help" className="field-help">
+          搜索只返回不少于该星数的仓库，0
+          表示不过滤；已入库或跟踪中的项目不受影响。
+        </small>
+      </div>
     </>
   );
 }
@@ -468,6 +487,22 @@ function HackerNewsFields({
           onChange={(event) => set("itemsPerFeed", Number(event.target.value))}
         />
       </label>
+      <div className="field-with-help">
+        <label>
+          最低分数（新条目）
+          <input
+            type="number"
+            min="0"
+            max="1000"
+            value={draft.minPoints ?? 10}
+            aria-describedby="hn-min-points-help"
+            onChange={(event) => set("minPoints", Number(event.target.value))}
+          />
+        </label>
+        <small id="hn-min-points-help" className="field-help">
+          低于该分数的新故事不写入目录，计为跳过；分数未知的照常保留；已入库或跟踪中的项目不受影响。
+        </small>
+      </div>
     </>
   );
 }
