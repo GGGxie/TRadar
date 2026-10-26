@@ -29,8 +29,8 @@
 | [T20 可运行交付](https://github.com/GGGxie/TRadar/issues/24) | [`2026-10-19-t20-delivery.md`](2026-10-19-t20-delivery.md) | 已完成 |
 | [检查点 D](https://github.com/GGGxie/TRadar/issues/25) | [`2026-10-19-checkpoint-d.md`](2026-10-19-checkpoint-d.md) | 已完成 |
 | [GitHub Issues 任务看板迁移](https://github.com/GGGxie/TRadar/issues/27) | [`2026-10-19-github-issues-migration.md`](2026-10-19-github-issues-migration.md) | 已完成 |
-| [Cloudflare Tunnel 临时运行](https://github.com/GGGxie/TRadar/issues/28) | [`2026-10-20-cloudflare-tunnel-launch.md`](2026-10-20-cloudflare-tunnel-launch.md) | 已完成，临时服务运行中 |
-| [浏览器访问令牌闭环](https://github.com/GGGxie/TRadar/issues/29) | [`2026-10-20-browser-access-token.md`](2026-10-20-browser-access-token.md) | 进行中，PR 待审阅 |
+| [Cloudflare Tunnel 临时运行](https://github.com/GGGxie/TRadar/issues/28) | [`2026-10-20-cloudflare-tunnel-launch.md`](2026-10-20-cloudflare-tunnel-launch.md) | 已完成，临时服务已停止 |
+| [浏览器访问令牌闭环](https://github.com/GGGxie/TRadar/issues/29) | [`2026-10-20-browser-access-token.md`](2026-10-20-browser-access-token.md) | 已完成，已合并（PR #30） |
 | [UX-1 当前关注度与来源展示](https://github.com/GGGxie/TRadar/issues/32) | [`2026-10-23-ux1-current-attention.md`](2026-10-23-ux1-current-attention.md) | 已完成，已合并（PR #38） |
 | [UX-2 冷启动可用](https://github.com/GGGxie/TRadar/issues/33) | [`2026-10-23-ux2-cold-start.md`](2026-10-23-ux2-cold-start.md) | 已完成，已合并（PR #39） |
 | [UX-3 采集质量门槛](https://github.com/GGGxie/TRadar/issues/34) | [`2026-10-23-ux3-quality-thresholds.md`](2026-10-23-ux3-quality-thresholds.md) | 已完成，已合并（PR #40） |

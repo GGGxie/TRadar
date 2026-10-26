@@ -2,7 +2,7 @@
 
 - 记录日期：2026-10-20（Asia/Shanghai）
 - 任务来源：[GitHub Issue #28](https://github.com/GGGxie/TRadar/issues/28)
-- 状态：已完成；临时服务运行中
+- 状态：已完成；临时服务已停止（2026-10-26 核对：无 TRadar 进程，18080 未监听）
 - 对应提交：本记录所在提交
 
 ## 1. 背景与边界
