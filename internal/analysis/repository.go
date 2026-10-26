@@ -77,6 +77,9 @@ func createVersion(ctx context.Context, tx *sql.Tx, projectID string, input Crea
 	if err != nil {
 		return Version{}, err
 	}
+	if origin == "MANUAL" && !hasAuthoredContent(content) {
+		return Version{}, fault.Field("content", "人工版本至少需要写下一条声明、待验证问题或下一步检查")
+	}
 	if input.BasedOnAnalysisID != nil {
 		base, readErr := getStoredVersion(ctx, tx, *input.BasedOnAnalysisID)
 		if readErr != nil || base.ProjectID != projectID || base.Level != input.Level {
@@ -266,6 +269,25 @@ func validateProjectRevision(ctx context.Context, q catalog.Querier, projectID s
 		return catalog.Project{}, fault.New("PROJECT_CONTEXT_CHANGED", "项目上下文已变化，请重新加载")
 	}
 	return project, nil
+}
+
+// UnknownPlaceholder 是人工表单为未填写声明预置的文字（#56），不算用户写下的内容。
+const UnknownPlaceholder = "尚未形成判断。"
+
+// hasAuthoredContent 判断人工版本是否至少包含一处用户写下的内容；
+// 不完整资料允许保存（SPEC-project-analysis 停止条件只作指引），完全空白的不允许。
+func hasAuthoredContent(content Content) bool {
+	if len(content.OpenQuestions) > 0 || len(content.NextChecks) > 0 {
+		return true
+	}
+	for _, section := range content.Sections {
+		for _, claim := range section.Claims {
+			if claim.Kind != "UNKNOWN" || claim.Text != UnknownPlaceholder {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func validateContent(level string, input Content) (Content, []string, error) {

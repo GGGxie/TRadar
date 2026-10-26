@@ -49,6 +49,20 @@ const originLabels = {
   MODEL: "模型生成",
 } as const;
 
+// 与后端 analysis.UnknownPlaceholder 一致：预置文字不算用户写下的内容（#56）。
+const unknownPlaceholder = "尚未形成判断。";
+
+function hasAuthoredContent(content: AnalysisContent) {
+  if (content.openQuestions.length > 0 || content.nextChecks.length > 0)
+    return true;
+  return content.sections.some((section) =>
+    section.claims.some(
+      (claim) =>
+        claim.kind !== "UNKNOWN" || claim.text.trim() !== unknownPlaceholder,
+    ),
+  );
+}
+
 function emptyContent(level: AnalysisLevel): AnalysisContent {
   return {
     sections: sectionKeys[level].map((key) => ({
@@ -56,7 +70,7 @@ function emptyContent(level: AnalysisLevel): AnalysisContent {
       claims: [
         {
           kind: "UNKNOWN",
-          text: "尚未形成判断。",
+          text: unknownPlaceholder,
           evidenceIds: [],
         },
       ],
@@ -277,7 +291,11 @@ export function AnalysisPanel({
                 ...section,
                 claims: [
                   ...section.claims,
-                  { kind: "UNKNOWN", text: "尚未形成判断。", evidenceIds: [] },
+                  {
+                    kind: "UNKNOWN",
+                    text: unknownPlaceholder,
+                    evidenceIds: [],
+                  },
                 ],
               }
             : section,
@@ -315,6 +333,12 @@ export function AnalysisPanel({
   async function saveManual(event: FormEvent) {
     event.preventDefault();
     if (!draft || saving) return;
+    if (!hasAuthoredContent(draft)) {
+      setActionError(
+        "人工版本至少写下一条声明、待验证问题或下一步检查；只写一部分也可以保存。",
+      );
+      return;
+    }
     setSaving(true);
     setActionError("");
     try {
