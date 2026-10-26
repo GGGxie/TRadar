@@ -23,8 +23,23 @@ type AttentionMetric struct {
 // cold-start ordering aid: the maximum of log-normalized primary metrics, so
 // values from different platforms are never added together.
 type AttentionResult struct {
-	Index   *float64          `json:"index"`
-	Metrics []AttentionMetric `json:"metrics"`
+	Index       *float64          `json:"index"`
+	Metrics     []AttentionMetric `json:"metrics"`
+	SourceWeeks []SourceWeek      `json:"sourceWeeks"`
+}
+
+// SourceWeek is the latest platform-defined natural week of daily buckets
+// (e.g. GitHub Star history). Platform time zone is unspecified, so it is shown
+// as reported and never mixed into rolling-window growth.
+type SourceWeek struct {
+	SourceRecordID string   `json:"sourceRecordId"`
+	Source         string   `json:"source"`
+	Metric         string   `json:"metric"`
+	WeekStart      string   `json:"weekStart"`
+	TimeZone       string   `json:"timeZone"`
+	Days           []*int64 `json:"days"`
+	Total          int64    `json:"total"`
+	ObservedAt     string   `json:"observedAt"`
 }
 
 var attentionMetrics = map[string][]string{
@@ -37,7 +52,7 @@ var attentionMetrics = map[string][]string{
 var attentionScale = map[string]float64{"GITHUB": 10000, "HACKER_NEWS": 500, "PRODUCT_HUNT": 500}
 
 func computeAttention(records []catalog.SourceRecord, projectID string, observations []catalog.Observation, asOf time.Time) AttentionResult {
-	result := AttentionResult{Metrics: []AttentionMetric{}}
+	result := AttentionResult{Metrics: []AttentionMetric{}, SourceWeeks: []SourceWeek{}}
 	latest := latestCumulative(observations, asOf)
 	for _, source := range []string{"GITHUB", "HACKER_NEWS", "PRODUCT_HUNT"} {
 		primary := primaryMetric(source)
@@ -68,6 +83,9 @@ func computeAttention(records []catalog.SourceRecord, projectID string, observat
 				SourceRecordID: best.ID, Source: source, Metric: metric, Value: observation.Value,
 				ObservedAt: observation.ObservedAt, ObservationID: observation.ID,
 			})
+		}
+		if week, ok := latestSourceWeek(observations, best.ID, source, primary, asOf); ok {
+			result.SourceWeeks = append(result.SourceWeeks, week)
 		}
 		index := math.Log1p(float64(max(bestValue, 0))) / math.Log1p(attentionScale[source])
 		index = math.Round(index*1000) / 1000
@@ -107,4 +125,59 @@ func latestCumulative(observations []catalog.Observation, asOf time.Time) map[at
 		latest[attentionKey{observation.SourceRecordID, observation.Metric}] = observation
 	}
 	return latest
+}
+
+func latestSourceWeek(observations []catalog.Observation, sourceRecordID, source, metric string, asOf time.Time) (SourceWeek, bool) {
+	// 每个来源日桶只保留 asOf 前最新的一次读取，避免重取翻倍。
+	buckets := make(map[string]catalog.Observation)
+	var latestWeek int64
+	found := false
+	for _, observation := range observations {
+		if observation.SourceRecordID != sourceRecordID || observation.Metric != metric || observation.Basis != "SOURCE_DAILY" || observation.ProviderPeriod == nil {
+			continue
+		}
+		period := *observation.ProviderPeriod
+		observed, err := time.Parse(time.RFC3339Nano, observation.ObservedAt)
+		if err != nil || observed.After(asOf) || period.DayIndex < 0 || period.DayIndex > 6 {
+			continue
+		}
+		if previous, ok := buckets[observation.PeriodKey]; ok && !newerObservation(observation, previous) {
+			continue
+		}
+		buckets[observation.PeriodKey] = observation
+		if !found || period.WeekUnix > latestWeek {
+			latestWeek, found = period.WeekUnix, true
+		}
+	}
+	if !found {
+		return SourceWeek{}, false
+	}
+	week := SourceWeek{
+		SourceRecordID: sourceRecordID, Source: source, Metric: metric,
+		WeekStart: catalog.Timestamp(time.Unix(latestWeek, 0)), Days: make([]*int64, 7),
+	}
+	for _, observation := range buckets {
+		period := *observation.ProviderPeriod
+		if period.WeekUnix != latestWeek {
+			continue
+		}
+		value := observation.Value
+		week.Days[period.DayIndex] = &value
+		week.Total += value
+		week.TimeZone = period.TimeZone
+		if observation.ObservedAt > week.ObservedAt {
+			week.ObservedAt = observation.ObservedAt
+		}
+	}
+	return week, true
+}
+
+func newerObservation(left, right catalog.Observation) bool {
+	if left.ObservedAt != right.ObservedAt {
+		return left.ObservedAt > right.ObservedAt
+	}
+	if left.FetchedAt != right.FetchedAt {
+		return left.FetchedAt > right.FetchedAt
+	}
+	return left.ID > right.ID
 }

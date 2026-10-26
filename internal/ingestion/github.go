@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -94,6 +95,7 @@ func (e *GitHubExecutor) Execute(ctx context.Context, run IngestionRun, reposito
 	newCount := (run.Config.CandidatesPerKeyword + 1) / 2
 	updatedCount := run.Config.CandidatesPerKeyword - newCount
 	seen := make(map[string]bool)
+	discovered := make([]discoveredRepository, 0)
 
 	for keywordIndex, keyword := range run.Config.Keywords {
 		queries := []struct {
@@ -158,16 +160,21 @@ func (e *GitHubExecutor) Execute(ctx context.Context, run IngestionRun, reposito
 				Key: fmt.Sprintf("search:%d:%s", keywordIndex, query.name), Checkpoint: checkpoint,
 				Stats: BatchStats{FetchedItems: len(response.Items), AcceptedItems: len(valid), SkippedItems: skipped, FailedItems: failed, ObservationsWritten: len(valid) * 2},
 			}
+			written := make([]discoveredRepository, 0, len(valid))
 			if _, requestErr = repository.CommitBatch(ctx, run.ID, batch, func(tx *sql.Tx) error {
+				written = written[:0]
 				for _, item := range valid {
-					if _, writeErr := writeGitHubRepository(ctx, tx, run.ID, item, e.now()); writeErr != nil {
+					source, writeErr := writeGitHubRepository(ctx, tx, run.ID, item, e.now())
+					if writeErr != nil {
 						return writeErr
 					}
+					written = append(written, discoveredRepository{sourceID: source.ID, stars: *item.StargazersCount})
 				}
 				return nil
 			}); requestErr != nil {
 				return result, requestErr
 			}
+			discovered = append(discovered, written...)
 		}
 	}
 
@@ -217,8 +224,12 @@ func (e *GitHubExecutor) Execute(ctx context.Context, run IngestionRun, reposito
 		}
 	}
 
-	for _, trackedSource := range historyTracked {
-		source, getErr := catalog.GetSource(ctx, e.db, trackedSource.ID)
+	historyIDs, err := allocateHistorySlots(ctx, e.db, historyTracked, discovered)
+	if err != nil {
+		return result, err
+	}
+	for _, historyID := range historyIDs {
+		source, getErr := catalog.GetSource(ctx, e.db, historyID)
 		if getErr != nil {
 			return result, getErr
 		}
@@ -265,6 +276,57 @@ func (e *GitHubExecutor) Execute(ctx context.Context, run IngestionRun, reposito
 		}
 	}
 	return result, nil
+}
+
+// githubHistorySlots 是每轮最多读取日级历史的仓库数（SPEC-source-ingestion）。
+const githubHistorySlots = 5
+
+type discoveredRepository struct {
+	sourceID string
+	stars    int64
+}
+
+// allocateHistorySlots 先保留已跟踪仓库（最久未取历史优先），剩余名额给本轮发现、
+// 尚无日级历史的候选，按 Stars 降序，让冷启动时最受关注的项目先有来源日桶。
+func allocateHistorySlots(ctx context.Context, db *sql.DB, tracked []catalog.SourceRecord, discovered []discoveredRepository) ([]string, error) {
+	ids := make([]string, 0, githubHistorySlots)
+	chosen := make(map[string]bool, githubHistorySlots)
+	for _, source := range tracked {
+		if len(ids) == githubHistorySlots {
+			return ids, nil
+		}
+		ids = append(ids, source.ID)
+		chosen[source.ID] = true
+	}
+	if len(ids) == githubHistorySlots || len(discovered) == 0 {
+		return ids, nil
+	}
+	candidateIDs := make([]string, 0, len(discovered))
+	for _, item := range discovered {
+		candidateIDs = append(candidateIDs, item.sourceID)
+	}
+	withHistory, err := catalog.SourceIDsWithBasis(ctx, db, candidateIDs, "SOURCE_DAILY")
+	if err != nil {
+		return nil, err
+	}
+	ordered := append([]discoveredRepository(nil), discovered...)
+	sort.SliceStable(ordered, func(i, j int) bool {
+		if ordered[i].stars != ordered[j].stars {
+			return ordered[i].stars > ordered[j].stars
+		}
+		return ordered[i].sourceID < ordered[j].sourceID
+	})
+	for _, item := range ordered {
+		if len(ids) == githubHistorySlots {
+			break
+		}
+		if chosen[item.sourceID] || withHistory[item.sourceID] {
+			continue
+		}
+		ids = append(ids, item.sourceID)
+		chosen[item.sourceID] = true
+	}
+	return ids, nil
 }
 
 func githubBudgetPolicy(config SourceConfig, hasToken bool) *BudgetPolicy {

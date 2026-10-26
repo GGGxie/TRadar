@@ -1,4 +1,5 @@
 import { cleanup, render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { SignalPanel } from "./SignalPanel";
 
@@ -72,10 +73,43 @@ const source = {
   revision: 1,
 };
 
-function stubApi(sources: unknown[]) {
-  const fetcher = vi.fn(async (path: string) => {
+function githubView(tracked: string[], revision: number) {
+  return {
+    source: "GITHUB",
+    config: {
+      source: "GITHUB",
+      isEnabled: true,
+      isScheduleEnabled: false,
+      intervalMinutes: 60,
+      trackedSourceRecordIds: tracked,
+    },
+    revision,
+    hasCredentials: false,
+    availability: "AVAILABLE",
+    lastRunId: null,
+    lastSuccessfulAt: null,
+    lastObservationAt: null,
+    nextScheduledAt: null,
+    nextRetryAt: null,
+    budget: { remainingRequests: null, resetAt: null },
+  };
+}
+
+function stubApi(sources: unknown[], trendData: unknown = trend) {
+  let tracked = ["other"];
+  let revision = 3;
+  const fetcher = vi.fn(async (path: string, options?: RequestInit) => {
     if (path.includes("/trend"))
-      return new Response(JSON.stringify({ data: trend }));
+      return new Response(JSON.stringify({ data: trendData }));
+    if (path.endsWith("/sources/GITHUB")) {
+      if (options?.method === "PATCH") {
+        tracked = JSON.parse(String(options.body)).trackedSourceRecordIds;
+        revision += 1;
+      }
+      return new Response(
+        JSON.stringify({ data: githubView(tracked, revision) }),
+      );
+    }
     return new Response(
       JSON.stringify({
         data: sources,
@@ -124,6 +158,58 @@ describe("SignalPanel", () => {
     expect(paths.some((path) => path.includes("/projects/p1/sources"))).toBe(
       true,
     );
+  });
+
+  it("shows the latest platform week separately from rolling growth", async () => {
+    stubApi([source], {
+      ...trend,
+      attention: {
+        ...trend.attention,
+        sourceWeeks: [
+          {
+            sourceRecordId: "gh",
+            source: "GITHUB",
+            metric: "STARS",
+            weekStart: "2026-10-18T00:00:00.000000000Z",
+            timeZone: "UNSPECIFIED",
+            days: [890, 1129, 1939, null, null, null, null],
+            total: 3958,
+            observedAt: "2026-10-23T02:21:43.000000000Z",
+          },
+        ],
+      },
+    });
+    render(<SignalPanel projectId="p1" />);
+    const week = await screen.findByRole("list", {
+      name: "GitHub 来源本周每日新增 Stars",
+    });
+    expect(screen.getByText("来源本周新增 +3,958")).toBeTruthy();
+    expect(within(week).getAllByRole("listitem")).toHaveLength(7);
+    expect(within(week).getByText("1,939")).toBeTruthy();
+    expect(within(week).getAllByText("—")).toHaveLength(4);
+    expect(
+      screen.getByText(/平台自然周（10\/18 起），时区未说明；不计入趋势分/),
+    ).toBeTruthy();
+  });
+
+  it("tracks a GitHub repository with revision protection", async () => {
+    const fetcher = stubApi([source]);
+    render(<SignalPanel projectId="p1" />);
+    await userEvent.click(
+      await screen.findByRole("button", { name: "跟踪这个仓库" }),
+    );
+    await screen.findByRole("button", { name: "取消跟踪" });
+    const patch = fetcher.mock.calls.find(
+      ([, options]) => options?.method === "PATCH",
+    )!;
+    expect(String(patch[0])).toContain("/sources/GITHUB");
+    expect(new Headers(patch[1]!.headers).get("If-Match")).toBe('"3"');
+    expect(JSON.parse(String(patch[1]!.body))).toEqual({
+      trackedSourceRecordIds: ["other", "gh"],
+    });
+    expect(
+      screen.getByText(/每轮采集都会刷新它的累计值和日级历史/),
+    ).toBeTruthy();
   });
 
   it("explains that manually recorded projects have no source observations", async () => {
