@@ -50,6 +50,11 @@ func NormalizeURL(raw string) (string, error) {
 	}
 	if host == "github.com" && port == "" {
 		parts := strings.Split(strings.Trim(u.Path, "/"), "/")
+		// /owner/repo/tree/<ref>/… 与 /blob/<ref>/… 只是浏览仓库代码，归一到仓库根；
+		// issues、releases 等子页面保持原样。
+		if len(parts) >= 4 && (parts[2] == "tree" || parts[2] == "blob") && parts[3] != "" {
+			parts = parts[:2]
+		}
 		if len(parts) == 2 && parts[0] != "" && parts[1] != "" {
 			u.Scheme = "https"
 			u.Path = "/" + strings.ToLower(parts[0]) + "/" + strings.ToLower(strings.TrimSuffix(parts[1], ".git"))

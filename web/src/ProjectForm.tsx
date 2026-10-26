@@ -9,7 +9,8 @@ import {
 
 interface Props {
   project?: Project;
-  onSaved: (project: Project) => void;
+  // existing=true：链接已在目录中，服务端返回已有项目，表单内容没有写入。
+  onSaved: (project: Project, existing?: boolean) => void;
   onCancel: () => void;
 }
 export function ProjectForm({ project, onSaved, onCancel }: Props) {
@@ -54,7 +55,7 @@ export function ProjectForm({ project, onSaved, onCancel }: Props) {
     try {
       const result = await saveProject(draft, key.current, project);
       dirty.current = false;
-      onSaved(result.data);
+      onSaved(result.data, result.existing ?? false);
     } catch (error) {
       setError(error instanceof Error ? error.message : "保存失败");
       if (error instanceof ApiError && error.status === 412) setConflict(true);

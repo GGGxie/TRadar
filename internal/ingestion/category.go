@@ -45,3 +45,16 @@ func classifyCategory(texts ...string) string {
 	}
 	return "OTHER"
 }
+
+// hackerNewsProjectName 去掉发布类前缀，项目名只保留作品本身；HN 来源记录仍保存原标题。
+// Ask/Tell HN 是讨论而非作品，保持原样。
+func hackerNewsProjectName(title string) string {
+	for _, prefix := range []string{"show hn:", "launch hn:"} {
+		if len(title) > len(prefix) && strings.EqualFold(title[:len(prefix)], prefix) {
+			if name := strings.TrimSpace(title[len(prefix):]); name != "" {
+				return name
+			}
+		}
+	}
+	return title
+}

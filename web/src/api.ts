@@ -125,6 +125,7 @@ export interface IngestionRun {
   finishedAt: string | null;
   fetchedItems: number;
   acceptedItems: number;
+  skippedItems: number;
   failedItems: number;
   observationsWritten: number;
   requestsMade: number;
@@ -477,11 +478,12 @@ function withAccessToken(options: RequestInit): RequestInit {
 }
 export async function request<T>(
   path: string,
-  options: RequestInit = {},
+  options: RequestInit & { onStatus?: (status: number) => void } = {},
 ): Promise<T> {
   let result: Response;
+  const { onStatus: _onStatus, ...init } = options;
   try {
-    result = await fetch(`/api/v1${path}`, withAccessToken(options));
+    result = await fetch(`/api/v1${path}`, withAccessToken(init));
   } catch (error) {
     if (error instanceof DOMException && error.name === "AbortError")
       throw error;
@@ -515,13 +517,14 @@ export async function request<T>(
     }
     throw new ApiError(message, result.status, code);
   }
+  options.onStatus?.(result.status);
   return result.json() as Promise<T>;
 }
 export function saveProject(
   input: ProjectInput,
   key: string,
   project?: Project,
-) {
+): Promise<Resource<Project> & { existing?: boolean }> {
   if (project) {
     const { name, summary, category } = input;
     return request<Resource<Project>>(`/projects/${project.id}`, {
@@ -533,11 +536,17 @@ export function saveProject(
       body: JSON.stringify({ name, summary, category }),
     });
   }
+  let status = 0;
   return request<Resource<Project>>("/projects", {
     method: "POST",
     headers: { "Content-Type": "application/json", "Idempotency-Key": key },
     body: JSON.stringify(input),
-  });
+    onStatus: (value) => (status = value),
+  }).then((result) => ({
+    ...result,
+    // 链接已存在时服务端返回 200 和已有项目，表单内容不会写入。
+    existing: status === 200,
+  }));
 }
 export function saveEvidence(
   projectId: string,

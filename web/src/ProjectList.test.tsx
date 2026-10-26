@@ -1,4 +1,5 @@
 import { cleanup, render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ProjectList } from "./ProjectList";
 import type { ProjectTrend } from "./api";
@@ -127,6 +128,41 @@ describe("ProjectList", () => {
         .getByRole("link", { name: "开启定时采集" })
         .getAttribute("href"),
     ).toBe("/settings");
+  });
+
+  it("restores filters from the address and writes changes back", async () => {
+    window.history.replaceState(
+      null,
+      "",
+      "/radar?q=agent&category=AI_AGENT&window=7d&page=2",
+    );
+    const fetcher = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            data: [],
+            pagination: { page: 2, pageSize: 20, totalItems: 0, totalPages: 0 },
+          }),
+        ),
+    );
+    vi.stubGlobal("fetch", fetcher);
+    render(<ProjectList />);
+    await screen.findByText("没有匹配的项目");
+    const firstPath = String((fetcher.mock.calls[0] as unknown[])[0]);
+    const params = new URL(firstPath, "http://local").searchParams;
+    expect(params.get("q")).toBe("agent");
+    expect(params.get("category")).toBe("AI_AGENT");
+    expect(params.get("window")).toBe("7d");
+    expect(params.get("page")).toBe("2");
+    expect((screen.getByLabelText("搜索项目") as HTMLInputElement).value).toBe(
+      "agent",
+    );
+    await userEvent.selectOptions(screen.getByLabelText("筛选来源"), "GITHUB");
+    const address = new URLSearchParams(window.location.search);
+    expect(address.get("source")).toBe("GITHUB");
+    expect(address.get("q")).toBe("agent");
+    expect(address.get("page")).toBeNull();
+    window.history.replaceState(null, "", "/");
   });
 
   it("guides an empty workspace to collect from sources first", async () => {

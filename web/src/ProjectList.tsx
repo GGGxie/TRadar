@@ -9,13 +9,41 @@ import {
   type ProjectTrend,
 } from "./api";
 import { ProjectForm } from "./ProjectForm";
+// 筛选条件保存在地址栏，刷新、收藏或分享链接后保持不变（#37）。
+function initialFilters() {
+  const params = new URLSearchParams(window.location.search);
+  const page = Number(params.get("page"));
+  return {
+    page: Number.isInteger(page) && page > 0 ? page : 1,
+    query: params.get("q") ?? "",
+    category: params.get("category") ?? "",
+    source: params.get("source") ?? "",
+    trendWindow: (params.get("window") === "7d" ? "7d" : "24h") as "24h" | "7d",
+  };
+}
+
 export function ProjectList() {
-  const [page, setPage] = useState(1);
-  const [search, setSearch] = useState("");
-  const [query, setQuery] = useState("");
-  const [category, setCategory] = useState("");
-  const [source, setSource] = useState("");
-  const [trendWindow, setTrendWindow] = useState<"24h" | "7d">("24h");
+  const [initial] = useState(initialFilters);
+  const [page, setPage] = useState(initial.page);
+  const [search, setSearch] = useState(initial.query);
+  const [query, setQuery] = useState(initial.query);
+  const [category, setCategory] = useState(initial.category);
+  const [source, setSource] = useState(initial.source);
+  const [trendWindow, setTrendWindow] = useState<"24h" | "7d">(
+    initial.trendWindow,
+  );
+  useEffect(() => {
+    const params = new URLSearchParams();
+    if (query) params.set("q", query);
+    if (category) params.set("category", category);
+    if (source) params.set("source", source);
+    if (trendWindow !== "24h") params.set("window", trendWindow);
+    if (page > 1) params.set("page", String(page));
+    const search = params.toString();
+    const next = `${window.location.pathname}${search ? `?${search}` : ""}`;
+    if (next !== `${window.location.pathname}${window.location.search}`)
+      window.history.replaceState(null, "", next);
+  }, [page, query, category, source, trendWindow]);
   const [data, setData] = useState<Page<ProjectTrend> | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -68,8 +96,10 @@ export function ProjectList() {
       </header>
       {creating && (
         <ProjectForm
-          onSaved={(project) => {
-            window.location.assign(`/projects/${project.id}`);
+          onSaved={(project, existing) => {
+            window.location.assign(
+              `/projects/${project.id}${existing ? "?existing=1" : ""}`,
+            );
           }}
           onCancel={() => setCreating(false)}
         />

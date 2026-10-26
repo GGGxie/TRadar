@@ -9,13 +9,11 @@ afterEach(() => {
 });
 describe("ProjectForm", () => {
   it("saves a project with a stable retry key and returns the stored identity", async () => {
-    const fetcher = vi
-      .fn()
-      .mockResolvedValue(
-        new Response(JSON.stringify({ data: { id: "p1", name: "测试项目" } }), {
-          status: 201,
-        }),
-      );
+    const fetcher = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ data: { id: "p1", name: "测试项目" } }), {
+        status: 201,
+      }),
+    );
     vi.stubGlobal("fetch", fetcher);
     const saved = vi.fn();
     render(<ProjectForm onSaved={saved} onCancel={() => {}} />);
@@ -24,7 +22,10 @@ describe("ProjectForm", () => {
     await user.type(screen.getByLabelText("项目链接"), "https://example.com");
     await user.click(screen.getByRole("button", { name: "保存项目" }));
     await waitFor(() =>
-      expect(saved).toHaveBeenCalledWith(expect.objectContaining({ id: "p1" })),
+      expect(saved).toHaveBeenCalledWith(
+        expect.objectContaining({ id: "p1" }),
+        false,
+      ),
     );
     const options = fetcher.mock.calls[0][1] as RequestInit;
     expect(new Headers(options.headers).get("Idempotency-Key")).toBeTruthy();
@@ -33,6 +34,34 @@ describe("ProjectForm", () => {
       canonicalUrl: "https://example.com",
       category: "OTHER",
     });
+  });
+  it("reports when the link already exists in the catalog", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({ data: { id: "old", name: "已有项目" } }),
+          {
+            status: 200,
+          },
+        ),
+      ),
+    );
+    const saved = vi.fn();
+    render(<ProjectForm onSaved={saved} onCancel={() => {}} />);
+    const user = userEvent.setup();
+    await user.type(screen.getByLabelText("项目名称"), "重复录入");
+    await user.type(
+      screen.getByLabelText("项目链接"),
+      "https://GitHub.com/acme/tool/",
+    );
+    await user.click(screen.getByRole("button", { name: "保存项目" }));
+    await waitFor(() =>
+      expect(saved).toHaveBeenCalledWith(
+        expect.objectContaining({ id: "old" }),
+        true,
+      ),
+    );
   });
   it("preserves input and reuses the intent after a failed save", async () => {
     const fetcher = vi.fn().mockRejectedValue(new Error("offline"));

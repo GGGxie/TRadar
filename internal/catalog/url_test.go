@@ -9,6 +9,13 @@ func TestNormalizeURLPreservesIdentity(t *testing.T) {
 		{"http://example.com/a", "http://example.com/a"},
 		{"https://github.com/Owner/Repo.git/?utm_medium=share", "https://github.com/owner/repo"},
 		{"https://example.com", "https://example.com/"},
+		// #37：代码浏览路径归一到仓库根，避免同一仓库因 HN 链接到某个 commit 而成为另一个项目。
+		{"https://github.com/Zof-AI/zof-api-contract-check/tree/e9d45f612e75406b1f943c7bab76fab600fa950f", "https://github.com/zof-ai/zof-api-contract-check"},
+		{"https://github.com/acme/tool/blob/main/README.md#usage", "https://github.com/acme/tool"},
+		{"https://github.com/acme/tool/tree/main/", "https://github.com/acme/tool"},
+		// 其他子页面（issues、releases、wiki…）保持原样，不擅自合并成仓库。
+		{"https://github.com/acme/tool/issues/12", "https://github.com/acme/tool/issues/12"},
+		{"https://github.com/acme/tool/tree", "https://github.com/acme/tool/tree"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.in, func(t *testing.T) {
