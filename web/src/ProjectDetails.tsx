@@ -12,6 +12,7 @@ import { EvidencePanel } from "./EvidencePanel";
 import { AnalysisPanel } from "./AnalysisPanel";
 import { ResearchPanel } from "./ResearchPanel";
 import { ExperimentPanel } from "./ExperimentPanel";
+import { SignalPanel } from "./SignalPanel";
 export function ProjectDetails({ id }: { id: string }) {
   const [project, setProject] = useState<Project | null>(null);
   const [error, setError] = useState("");
@@ -101,6 +102,7 @@ export function ProjectDetails({ id }: { id: string }) {
               </div>
             </dl>
           </section>
+          <SignalPanel projectId={project.id} />
           <section
             className="evidence-note"
             aria-labelledby="evidence-guidance-title"
@@ -111,7 +113,7 @@ export function ProjectDetails({ id }: { id: string }) {
             <div>
               <h2 id="evidence-guidance-title">先记录，再求证</h2>
               <p>
-                项目介绍来自你的录入。热度、用户需求和商业表现，需要各自的来源与证据。
+                项目介绍来自人工录入或来源采集。关注度不等于需求，用户需求和商业表现需要各自的证据。
               </p>
             </div>
           </section>

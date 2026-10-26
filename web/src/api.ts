@@ -162,7 +162,69 @@ export interface TrendResult {
     totalWindows: 7;
   };
   crossSource: { platforms: RemoteSource[]; sourceRecordIds: string[] };
+  // 2026-10-23 之前冻结的日报/分析快照没有该字段。
+  attention?: { index: number | null; metrics: AttentionMetric[] };
+  explanations: string[];
   alert: { kind: string; threshold: number; observationIds: string[] } | null;
+}
+export interface AttentionMetric {
+  sourceRecordId: string;
+  source: RemoteSource;
+  metric: string;
+  value: number;
+  observedAt: string;
+  observationId: string;
+}
+export interface SourceRecord {
+  id: string;
+  projectId: string;
+  source: RemoteSource | "MANUAL";
+  externalId: string;
+  recordType: string;
+  url: string;
+  targetUrl: string | null;
+  title: string;
+  excerpt: string;
+  publishedAt: string | null;
+  fetchedAt: string;
+  revision: number;
+}
+export const sourceLabels: Record<SourceRecord["source"], string> = {
+  GITHUB: "GitHub",
+  HACKER_NEWS: "Hacker News",
+  PRODUCT_HUNT: "Product Hunt",
+  MANUAL: "人工录入",
+};
+export const metricLabels: Record<string, string> = {
+  STARS: "Stars",
+  FORKS: "Forks",
+  POINTS: "分数",
+  COMMENTS: "评论",
+  VOTES: "票数",
+};
+// 列表里每个平台只展示主指标，例如「GitHub ★ 17.4 万」「HN 412 分」。
+export function attentionBadge(metric: AttentionMetric) {
+  const value = compactCount(metric.value);
+  switch (metric.source) {
+    case "GITHUB":
+      return `GitHub ★ ${value}`;
+    case "HACKER_NEWS":
+      return `HN ${value} 分`;
+    default:
+      return `PH ${value} 票`;
+  }
+}
+export function primaryAttention(metrics: AttentionMetric[]) {
+  const primary: Record<string, string> = {
+    GITHUB: "STARS",
+    HACKER_NEWS: "POINTS",
+    PRODUCT_HUNT: "VOTES",
+  };
+  return metrics.filter((metric) => primary[metric.source] === metric.metric);
+}
+export function compactCount(value: number) {
+  if (Math.abs(value) < 10000) return String(value);
+  return `${(value / 10000).toFixed(1).replace(/\.0$/, "")} 万`;
 }
 export interface ProjectTrend {
   project: Project;
