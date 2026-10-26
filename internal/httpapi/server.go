@@ -73,6 +73,7 @@ func New(db *sql.DB, config Config) http.Handler {
 	mux.HandleFunc("/api/v1/projects/{id}/experiments", s.projectExperiments)
 	mux.HandleFunc("/api/v1/experiments/{id}", s.experiment)
 	mux.HandleFunc("/api/v1/research-preferences", s.researchPreferences)
+	mux.HandleFunc("/api/v1/research-rhythm", s.researchRhythm)
 	mux.HandleFunc("/api/v1/source-records/{id}", s.sourceRecord)
 	mux.HandleFunc("/api/v1/sources", s.remoteSources)
 	mux.HandleFunc("/api/v1/sources/{source}", s.remoteSource)

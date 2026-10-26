@@ -14,6 +14,8 @@ type Entry struct {
 	Revision     int      `json:"revision"`
 	CreatedAt    string   `json:"createdAt"`
 	UpdatedAt    string   `json:"updatedAt"`
+	// StarredAt 是最近一次变为收藏的时刻；#48 之前的收藏为 null。
+	StarredAt *string `json:"starredAt"`
 }
 
 type EntryPatch struct {

@@ -15,7 +15,7 @@ import (
 	"tradar/internal/fault"
 )
 
-const entryColumns = `id,project_id,is_starred,tags_json,stage,decision,rationale,notes,next_action,next_action_at,revision,created_at,updated_at`
+const entryColumns = `id,project_id,is_starred,tags_json,stage,decision,rationale,notes,next_action,next_action_at,revision,created_at,updated_at,starred_at`
 
 func CreateEntry(ctx context.Context, q catalog.Querier, projectID string, patch EntryPatch, now time.Time) (Entry, error) {
 	if _, err := catalog.GetProject(ctx, q, projectID); err != nil {
@@ -35,8 +35,12 @@ func CreateEntry(ctx context.Context, q catalog.Querier, projectID string, patch
 	if err := validateEntry(&entry); err != nil {
 		return Entry{}, err
 	}
+	if entry.IsStarred {
+		starredAt := catalog.Timestamp(now)
+		entry.StarredAt = &starredAt
+	}
 	tags, _ := json.Marshal(entry.Tags)
-	result, err := q.ExecContext(ctx, `INSERT INTO research_entries (`+entryColumns+`) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(project_id) DO NOTHING`, entry.ID, entry.ProjectID, entry.IsStarred, string(tags), entry.Stage, entry.Decision, entry.Rationale, entry.Notes, entry.NextAction, entry.NextActionAt, entry.Revision, entry.CreatedAt, entry.UpdatedAt)
+	result, err := q.ExecContext(ctx, `INSERT INTO research_entries (`+entryColumns+`) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(project_id) DO NOTHING`, entry.ID, entry.ProjectID, entry.IsStarred, string(tags), entry.Stage, entry.Decision, entry.Rationale, entry.Notes, entry.NextAction, entry.NextActionAt, entry.Revision, entry.CreatedAt, entry.UpdatedAt, entry.StarredAt)
 	if err != nil {
 		return Entry{}, err
 	}
@@ -69,14 +73,22 @@ func UpdateEntry(ctx context.Context, q catalog.Querier, projectID string, expec
 	if entry.Revision != expected {
 		return Entry{}, fault.New("VERSION_CONFLICT", "研究记录已被修改，请加载最新版本并手工合并")
 	}
+	wasStarred := entry.IsStarred
 	applyPatch(&entry, patch)
 	if err = validateEntry(&entry); err != nil {
 		return Entry{}, err
 	}
+	// 收藏时刻只在「未收藏 → 收藏」时更新；取消收藏清空，供节奏统计使用。
+	if entry.IsStarred && !wasStarred {
+		starredAt := catalog.Timestamp(now)
+		entry.StarredAt = &starredAt
+	} else if !entry.IsStarred {
+		entry.StarredAt = nil
+	}
 	entry.Revision++
 	entry.UpdatedAt = catalog.Timestamp(now)
 	tags, _ := json.Marshal(entry.Tags)
-	result, err := q.ExecContext(ctx, `UPDATE research_entries SET is_starred=?,tags_json=?,stage=?,decision=?,rationale=?,notes=?,next_action=?,next_action_at=?,revision=?,updated_at=? WHERE project_id=? AND revision=?`, entry.IsStarred, string(tags), entry.Stage, entry.Decision, entry.Rationale, entry.Notes, entry.NextAction, entry.NextActionAt, entry.Revision, entry.UpdatedAt, projectID, expected)
+	result, err := q.ExecContext(ctx, `UPDATE research_entries SET is_starred=?,tags_json=?,stage=?,decision=?,rationale=?,notes=?,next_action=?,next_action_at=?,revision=?,updated_at=?,starred_at=? WHERE project_id=? AND revision=?`, entry.IsStarred, string(tags), entry.Stage, entry.Decision, entry.Rationale, entry.Notes, entry.NextAction, entry.NextActionAt, entry.Revision, entry.UpdatedAt, entry.StarredAt, projectID, expected)
 	if err != nil {
 		return Entry{}, err
 	}
@@ -249,9 +261,12 @@ func (patch EntryPatch) empty() bool {
 func scanEntry(row interface{ Scan(...any) error }) (Entry, error) {
 	var entry Entry
 	var tags string
-	var next sql.NullString
-	if err := row.Scan(&entry.ID, &entry.ProjectID, &entry.IsStarred, &tags, &entry.Stage, &entry.Decision, &entry.Rationale, &entry.Notes, &entry.NextAction, &next, &entry.Revision, &entry.CreatedAt, &entry.UpdatedAt); err != nil {
+	var next, starred sql.NullString
+	if err := row.Scan(&entry.ID, &entry.ProjectID, &entry.IsStarred, &tags, &entry.Stage, &entry.Decision, &entry.Rationale, &entry.Notes, &entry.NextAction, &next, &entry.Revision, &entry.CreatedAt, &entry.UpdatedAt, &starred); err != nil {
 		return Entry{}, err
+	}
+	if starred.Valid {
+		entry.StarredAt = &starred.String
 	}
 	if err := json.Unmarshal([]byte(tags), &entry.Tags); err != nil {
 		return Entry{}, err

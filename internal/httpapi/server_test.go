@@ -706,3 +706,17 @@ func TestEvidenceHTTPListsCurrentVersionsAndRejectsBranching(t *testing.T) {
 		t.Fatalf("branch: %d %s", branch.Code, branch.Body)
 	}
 }
+
+func TestResearchRhythmHTTPValidatesTimeZone(t *testing.T) {
+	handler := testServer(t)
+	ok := call(handler, http.MethodGet, "/api/v1/research-rhythm?timeZone=America/New_York", "", "", "")
+	if ok.Code != http.StatusOK || !strings.Contains(ok.Body.String(), `"timeZone":"America/New_York"`) || !strings.Contains(ok.Body.String(), `"dailySaveTarget":3`) {
+		t.Fatalf("rhythm: %d %s", ok.Code, ok.Body)
+	}
+	for _, zone := range []string{"Mars/Base", "Local"} {
+		bad := call(handler, http.MethodGet, "/api/v1/research-rhythm?timeZone="+zone, "", "", "")
+		if bad.Code != http.StatusUnprocessableEntity {
+			t.Fatalf("zone %s: %d %s", zone, bad.Code, bad.Body)
+		}
+	}
+}
