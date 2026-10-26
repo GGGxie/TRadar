@@ -96,7 +96,7 @@ func (c requestController) JSON(ctx context.Context, request *http.Request, clas
 		report.Attempts++
 		metadata, err := requestJSONAttempt(ctx, c.client, attemptRequest, destination, c.requestTimeout)
 		if (c.source == GitHub || c.source == ProductHunt) && c.db != nil {
-			if recordErr := recordProviderBudgetHeaders(ctx, c.db, c.source, metadata.header, now); recordErr != nil {
+			if recordErr := recordProviderBudgetHeaders(ctx, c.db, c.source, class, metadata.header, now); recordErr != nil {
 				return report, recordErr
 			}
 		}
@@ -256,7 +256,11 @@ func providerResetTime(source RemoteSource, value string, now time.Time) (time.T
 	return now.Add(time.Duration(seconds) * time.Second), true
 }
 
-func recordProviderBudgetHeaders(ctx context.Context, db *sql.DB, source RemoteSource, header http.Header, observedAt time.Time) error {
+func recordProviderBudgetHeaders(ctx context.Context, db *sql.DB, source RemoteSource, class RequestClass, header http.Header, observedAt time.Time) error {
+	resource := providerResource(source, class)
+	if reported := strings.ToLower(strings.TrimSpace(rateLimitHeader(header, source, "Resource"))); source == GitHub && validProviderResource(reported) {
+		resource = reported
+	}
 	remaining, err := strconv.Atoi(strings.TrimSpace(rateLimitHeader(header, source, "Remaining")))
 	maxRemaining := 5000
 	if source == ProductHunt {
@@ -269,7 +273,7 @@ func recordProviderBudgetHeaders(ctx context.Context, db *sql.DB, source RemoteS
 	if !ok || !resetAt.After(observedAt) {
 		return nil
 	}
-	return RecordProviderBudget(ctx, db, source, remaining, resetAt, observedAt)
+	return RecordProviderBudget(ctx, db, source, resource, remaining, resetAt, observedAt)
 }
 
 func rateLimitHeader(header http.Header, source RemoteSource, field string) string {

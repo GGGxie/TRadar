@@ -97,7 +97,11 @@ func (e *GitHubExecutor) Execute(ctx context.Context, run IngestionRun, reposito
 	seen := make(map[string]bool)
 	discovered := make([]discoveredRepository, 0)
 
+	searchLimited := false
 	for keywordIndex, keyword := range run.Config.Keywords {
+		if searchLimited {
+			break
+		}
 		queries := []struct {
 			name, qualifier, sort string
 			count                 int
@@ -128,8 +132,13 @@ func (e *GitHubExecutor) Execute(ctx context.Context, run IngestionRun, reposito
 				}
 				code := remoteErrorCode(requestErr)
 				appendRunError(&result, code, "GitHub 候选查询失败", nil, true)
-				if code == "AUTH_FAILED" || code == "RATE_LIMITED" || code == "TASK_DEADLINE_EXCEEDED" {
+				if code == "AUTH_FAILED" || code == "TASK_DEADLINE_EXCEEDED" {
 					return result, nil
+				}
+				if code == "RATE_LIMITED" {
+					// search 池独立计费：停止剩余搜索，但继续用 core 池刷新跟踪仓库和日级历史。
+					searchLimited = true
+					break
 				}
 				continue
 			}

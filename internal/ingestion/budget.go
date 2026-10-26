@@ -35,6 +35,18 @@ type RateLimitError struct {
 
 func (e *RateLimitError) Error() string { return "来源请求预算暂不可用" }
 
+// providerResource 返回请求所属的平台配额池。GitHub 的 search（10/分钟）与 core（60/小时）
+// 互相独立；其他来源只有一个池。响应头带有 X-RateLimit-Resource 时以响应为准。
+func providerResource(source RemoteSource, class RequestClass) string {
+	if source == GitHub {
+		if class == RequestSearch {
+			return "search"
+		}
+		return "core"
+	}
+	return "default"
+}
+
 // CheckRequestBudgetAvailability verifies that a request could claim budget
 // without consuming it. ClaimRequestBudget remains the authoritative atomic
 // check immediately before each outbound request.
@@ -66,7 +78,7 @@ func CheckRequestBudgetAvailability(ctx context.Context, q catalog.Querier, sour
 			retryAt = laterTime(retryAt, searchReset)
 		}
 	}
-	stored, err := loadStoredBudgetState(ctx, q, source)
+	stored, err := loadStoredBudgetState(ctx, q, source, providerResource(source, class))
 	if err != nil {
 		return BudgetState{}, err
 	}
@@ -132,7 +144,8 @@ func ClaimRequestBudget(ctx context.Context, db *sql.DB, runID string, source Re
 			}
 		}
 
-		stored, err := loadStoredBudgetState(ctx, tx, source)
+		resource := providerResource(source, class)
+		stored, err := loadStoredBudgetState(ctx, tx, source, resource)
 		if err != nil {
 			return err
 		}
@@ -157,37 +170,51 @@ func ClaimRequestBudget(ctx context.Context, db *sql.DB, runID string, source Re
 		if providerActive {
 			(*stored.providerRemaining)--
 			provider = BudgetState{RemainingRequests: *stored.providerRemaining, ResetAt: stored.providerReset}
+			if _, err = tx.ExecContext(ctx, `UPDATE provider_budget_states SET remaining_requests=?,updated_at=? WHERE source=? AND resource=?`,
+				*stored.providerRemaining, catalog.Timestamp(now), source, resource); err != nil {
+				return err
+			}
 		}
 		state = effectiveBudgetState(local, provider, providerActive)
 		_, err = tx.ExecContext(ctx, `INSERT INTO source_budget_states(
-			source,local_remaining_requests,local_reset_at,provider_remaining_requests,provider_reset_at,provider_observed_at,updated_at
-		) VALUES(?,?,?,?,?,?,?) ON CONFLICT(source) DO UPDATE SET
+			source,local_remaining_requests,local_reset_at,updated_at
+		) VALUES(?,?,?,?) ON CONFLICT(source) DO UPDATE SET
 			local_remaining_requests=excluded.local_remaining_requests,local_reset_at=excluded.local_reset_at,
-			provider_remaining_requests=excluded.provider_remaining_requests,provider_reset_at=excluded.provider_reset_at,
-			provider_observed_at=excluded.provider_observed_at,updated_at=excluded.updated_at`,
-			source, local.RemainingRequests, catalog.Timestamp(local.ResetAt), nullableInt(stored.providerRemaining), nullableTime(stored.providerReset), nullableTime(stored.providerObservedAt), catalog.Timestamp(now))
+			updated_at=excluded.updated_at`,
+			source, local.RemainingRequests, catalog.Timestamp(local.ResetAt), catalog.Timestamp(now))
 		return err
 	})
 	return state, err
 }
 
-func RecordProviderBudget(ctx context.Context, db *sql.DB, source RemoteSource, remaining int, resetAt, observedAt time.Time) error {
+func RecordProviderBudget(ctx context.Context, db *sql.DB, source RemoteSource, resource string, remaining int, resetAt, observedAt time.Time) error {
 	maxRemaining := 5000
 	if source == ProductHunt {
 		maxRemaining = 1_000_000
 	}
-	if !IsRemoteSource(source) || remaining < 0 || remaining > maxRemaining || !resetAt.After(observedAt) {
+	if !IsRemoteSource(source) || !validProviderResource(resource) || remaining < 0 || remaining > maxRemaining || !resetAt.After(observedAt) {
 		return fault.Field("budget", "来源配额响应无效")
 	}
 	return storage.WithTx(ctx, db, func(tx *sql.Tx) error {
-		_, err := tx.ExecContext(ctx, `INSERT INTO source_budget_states(
-			source,local_remaining_requests,local_reset_at,provider_remaining_requests,provider_reset_at,provider_observed_at,updated_at
-		) VALUES(?,?,?,?,?,?,?) ON CONFLICT(source) DO UPDATE SET
-			provider_remaining_requests=excluded.provider_remaining_requests,provider_reset_at=excluded.provider_reset_at,
-			provider_observed_at=excluded.provider_observed_at,updated_at=excluded.updated_at`,
-			source, 0, catalog.Timestamp(observedAt), remaining, catalog.Timestamp(resetAt), catalog.Timestamp(observedAt), catalog.Timestamp(observedAt))
+		_, err := tx.ExecContext(ctx, `INSERT INTO provider_budget_states(source,resource,remaining_requests,reset_at,observed_at,updated_at)
+			VALUES(?,?,?,?,?,?) ON CONFLICT(source,resource) DO UPDATE SET
+			remaining_requests=excluded.remaining_requests,reset_at=excluded.reset_at,
+			observed_at=excluded.observed_at,updated_at=excluded.updated_at`,
+			source, resource, remaining, catalog.Timestamp(resetAt), catalog.Timestamp(observedAt), catalog.Timestamp(observedAt))
 		return err
 	})
+}
+
+func validProviderResource(resource string) bool {
+	if len(resource) < 1 || len(resource) > 40 {
+		return false
+	}
+	for _, character := range resource {
+		if (character < 'a' || character > 'z') && (character < '0' || character > '9') && character != '_' && character != '-' {
+			return false
+		}
+	}
+	return true
 }
 
 func budgetWindow(ctx context.Context, q catalog.Querier, source RemoteSource, class RequestClass, start time.Time) (int, time.Time, error) {
@@ -224,40 +251,41 @@ type storedBudgetState struct {
 	providerObservedAt time.Time
 }
 
-func loadStoredBudgetState(ctx context.Context, q catalog.Querier, source RemoteSource) (storedBudgetState, error) {
+func loadStoredBudgetState(ctx context.Context, q catalog.Querier, source RemoteSource, resource string) (storedBudgetState, error) {
 	var state storedBudgetState
 	var localReset string
-	var providerRemaining sql.NullInt64
-	var providerReset, providerObserved sql.NullString
-	err := q.QueryRowContext(ctx, `SELECT local_remaining_requests,local_reset_at,provider_remaining_requests,provider_reset_at,provider_observed_at FROM source_budget_states WHERE source=?`, source).
-		Scan(&state.localRemaining, &localReset, &providerRemaining, &providerReset, &providerObserved)
+	err := q.QueryRowContext(ctx, `SELECT local_remaining_requests,local_reset_at FROM source_budget_states WHERE source=?`, source).
+		Scan(&state.localRemaining, &localReset)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return state, err
+	}
+	if err == nil {
+		if state.localReset, err = time.Parse(time.RFC3339Nano, localReset); err != nil {
+			return state, err
+		}
+	}
+	var remaining int
+	var providerReset, providerObserved string
+	err = q.QueryRowContext(ctx, `SELECT remaining_requests,reset_at,observed_at FROM provider_budget_states WHERE source=? AND resource=?`, source, resource).
+		Scan(&remaining, &providerReset, &providerObserved)
 	if errors.Is(err, sql.ErrNoRows) {
 		return state, nil
 	}
 	if err != nil {
 		return state, err
 	}
-	state.localReset, err = time.Parse(time.RFC3339Nano, localReset)
-	if err != nil {
+	state.providerRemaining = &remaining
+	if state.providerReset, err = time.Parse(time.RFC3339Nano, providerReset); err != nil {
 		return state, err
 	}
-	if providerRemaining.Valid {
-		value := int(providerRemaining.Int64)
-		state.providerRemaining = &value
-		state.providerReset, err = time.Parse(time.RFC3339Nano, providerReset.String)
-		if err != nil {
-			return state, err
-		}
-		state.providerObservedAt, err = time.Parse(time.RFC3339Nano, providerObserved.String)
-		if err != nil {
-			return state, err
-		}
-	}
-	return state, nil
+	state.providerObservedAt, err = time.Parse(time.RFC3339Nano, providerObserved)
+	return state, err
 }
 
+// readEffectiveBudgetState 用于来源设置页：展示普通请求池（GitHub core），
+// 它与用户配置的「每小时本地预算」对应。
 func readEffectiveBudgetState(ctx context.Context, q catalog.Querier, source RemoteSource, now time.Time) (BudgetState, bool, error) {
-	stored, err := loadStoredBudgetState(ctx, q, source)
+	stored, err := loadStoredBudgetState(ctx, q, source, providerResource(source, RequestGeneral))
 	if err != nil {
 		return BudgetState{}, false, err
 	}

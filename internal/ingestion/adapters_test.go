@@ -518,6 +518,64 @@ func TestHackerNewsSkipsNewLowPointStoriesButRefreshesKnownOnes(t *testing.T) {
 	assertTableCount(t, db, "source_records", 2)
 }
 
+func TestGitHubSearchQuotaDoesNotBlockCoreRequests(t *testing.T) {
+	db := openTestDB(t)
+	ctx := context.Background()
+	now := time.Date(2026, 10, 23, 7, 15, 0, 0, time.UTC)
+	reset := strconv.FormatInt(now.Add(time.Minute).Unix(), 10)
+	historyCalls := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("X-RateLimit-Reset", reset)
+		switch {
+		case request.URL.Path == "/search/repositories":
+			// GitHub search 池（10/分钟）已用完，但 core 池仍有余量。
+			w.Header().Set("X-RateLimit-Resource", "search")
+			w.Header().Set("X-RateLimit-Limit", "10")
+			w.Header().Set("X-RateLimit-Remaining", "0")
+			if !strings.Contains(request.URL.Query().Get("q"), "agent") || !strings.Contains(request.URL.Query().Get("q"), "created:") {
+				json.NewEncoder(w).Encode(map[string]any{"total_count": 0, "incomplete_results": false, "items": []any{}})
+				return
+			}
+			json.NewEncoder(w).Encode(map[string]any{"total_count": 1, "incomplete_results": false, "items": []any{githubFixtureRepository("acme/radar", 120)}})
+		case strings.HasSuffix(request.URL.Path, "/stargazers/history"):
+			historyCalls++
+			w.Header().Set("X-RateLimit-Resource", "core")
+			w.Header().Set("X-RateLimit-Limit", "60")
+			w.Header().Set("X-RateLimit-Remaining", "54")
+			json.NewEncoder(w).Encode([]any{map[string]any{"week": 1791763200, "total": 7, "days": []int{1, 1, 1, 1, 1, 1, 1}}})
+		default:
+			t.Fatalf("unexpected GitHub request: %s", request.URL.Path)
+		}
+	}))
+	defer server.Close()
+	target, _ := url.Parse(server.URL)
+	executor := NewGitHubExecutor(db, &http.Client{Transport: &rewriteTransport{target: target}}, "", func() time.Time { return now })
+	run := createQueuedRun(t, db, GitHub, now)
+	if err := NewRunner(db, func() time.Time { return now }).Run(ctx, run.ID, executor); err != nil {
+		t.Fatal(err)
+	}
+	result, err := GetRun(ctx, db, run.ID)
+	if err != nil || historyCalls != 1 {
+		t.Fatalf("history must still use the core pool: run=%+v historyCalls=%d err=%v", result, historyCalls, err)
+	}
+	// 只有剩余搜索被 search 池拦下；日级历史不应出现 RATE_LIMITED。
+	for _, item := range result.Errors {
+		if item.Code != "RATE_LIMITED" || item.Message != "GitHub 候选查询失败" {
+			t.Fatalf("unexpected run error: %+v", item)
+		}
+	}
+	var daily int
+	if err = db.QueryRow(`SELECT count(*) FROM observations WHERE basis='SOURCE_DAILY'`).Scan(&daily); err != nil || daily != 7 {
+		t.Fatalf("daily buckets=%d err=%v", daily, err)
+	}
+	// 来源设置页展示的是 core 池余量，而不是 search 池。
+	view, err := GetSourceView(ctx, db, GitHub, Credentials{})
+	if err != nil || view.Budget.RemainingRequests == nil || *view.Budget.RemainingRequests == 0 {
+		t.Fatalf("budget view=%+v err=%v", view.Budget, err)
+	}
+}
+
 func TestGitHubClassifiesNewProjectsButKeepsUserCategory(t *testing.T) {
 	db := openTestDB(t)
 	ctx := context.Background()
