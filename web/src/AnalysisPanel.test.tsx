@@ -194,6 +194,80 @@ describe("AnalysisPanel", () => {
     });
   });
 
+  it("selects or clears all selectable evidence at once", async () => {
+    const bodies: Record<string, unknown>[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (path: string, options?: RequestInit) => {
+        if (path.includes("/analysis-capabilities"))
+          return new Response(
+            JSON.stringify({
+              data: { rulesEnabled: true, modelEnabled: false },
+            }),
+          );
+        if (path.includes("/evidence?"))
+          return new Response(
+            JSON.stringify({
+              data: [
+                {
+                  ...evidence,
+                  id: "e-public",
+                  title: "公开说明",
+                  isPublic: true,
+                },
+                {
+                  ...evidence,
+                  id: "e-private",
+                  title: "私密摘录",
+                  isPublic: false,
+                },
+              ],
+              pagination: {
+                page: 1,
+                pageSize: 100,
+                totalItems: 2,
+                totalPages: 1,
+              },
+            }),
+          );
+        if (path.includes("/analysis-runs") && options?.method === "POST") {
+          bodies.push(JSON.parse(String(options.body)));
+          return new Response(
+            JSON.stringify({ error: { code: "STOP", message: "停止" } }),
+            { status: 500 },
+          );
+        }
+        return new Response(
+          JSON.stringify({
+            data: [],
+            pagination: { page: 1, pageSize: 20, totalItems: 0, totalPages: 0 },
+          }),
+        );
+      }),
+    );
+    const user = userEvent.setup();
+    render(<AnalysisPanel project={project} evidenceRevision={0} />);
+    await user.click(
+      await screen.findByRole("button", { name: "生成规则初筛" }),
+    );
+    await user.click(await screen.findByRole("button", { name: "全选" }));
+    expect(
+      screen
+        .getAllByRole("checkbox")
+        .every((box) => (box as HTMLInputElement).checked),
+    ).toBe(true);
+    await user.click(screen.getByRole("button", { name: "清空" }));
+    expect(
+      screen
+        .getAllByRole("checkbox")
+        .some((box) => (box as HTMLInputElement).checked),
+    ).toBe(false);
+    await user.click(screen.getByRole("button", { name: "全选" }));
+    await user.click(screen.getByRole("button", { name: "生成并冻结版本" }));
+    await waitFor(() => expect(bodies).toHaveLength(1));
+    expect(bodies[0].evidenceIds).toEqual(["e-public", "e-private"]);
+  });
+
   it("saves a manual fact as a new version with a stable retry key", async () => {
     const postKeys: string[] = [];
     let attempts = 0;

@@ -96,6 +96,8 @@ DailyBrief 与 BriefItem 不可变，没有 PATCH / DELETE；显式重新生成�
    排除研究 stage=ARCHIVED 或 decision=PASS 的项目。
 2. `previousBriefId` 是同 timeZone、cutoffAt 更早的最近成功版本（包括同日早些版本）。
    首次生成比较起点为 cutoffAt 前 24 小时；之后以 previousBrief.cutoffAt 为新发现起点。
+   站内每个版本都写明比较基准：首份日报、同日「只列出版本 N 之后的新变化」或上一份日报的日期与版本
+   （[#49](https://github.com/GGGxie/TRadar/issues/49)）；选择规则不因此改变。
    项目首次被系统发现落在该区间标 NEW_DISCOVERY；未在之前 7 个本地日的成功简报中出现、
    但仍符合当前候选筛选的项目可标 FIRST_COVERAGE。
 3. 最近 7 日内已推荐项目只有发生下列变化才能再次推荐：

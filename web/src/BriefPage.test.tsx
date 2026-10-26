@@ -1,5 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import {
+  cleanup,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { BriefPage } from "./BriefPage";
 import type { DailyBrief } from "./api";
@@ -93,6 +99,44 @@ afterEach(() => {
 });
 
 describe("BriefPage", () => {
+  it("explains which version each regenerated brief is compared against", async () => {
+    const first = { ...brief, id: "b1", version: 1, previousBriefId: null };
+    const second = {
+      ...brief,
+      id: "b2",
+      version: 2,
+      previousBriefId: "b1",
+      items: [],
+      emptyReason: "NO_NEW_CHANGES" as const,
+    };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: RequestInfo | URL) => {
+        const path = String(input);
+        if (path.endsWith("/brief-settings")) return json({ data: settings });
+        if (path.includes("/briefs?page="))
+          return json({
+            data: [second, first],
+            pagination: { page: 1, pageSize: 20, totalItems: 2, totalPages: 1 },
+          });
+        throw new Error(`unexpected request ${path}`);
+      }),
+    );
+    render(<BriefPage />);
+    const latest = (
+      await screen.findByRole("heading", { name: "2026-10-16 · 版本 2" })
+    ).closest("article")!;
+    expect(
+      within(latest).getByText(
+        "本版只列出版本 1 之后的新变化；版本 1 中的项目仍保留在下方。",
+      ),
+    ).toBeTruthy();
+    const original = screen
+      .getByRole("heading", { name: "2026-10-16 · 版本 1" })
+      .closest("article")!;
+    expect(within(original).getByText(/首份日报/)).toBeTruthy();
+  });
+
   it("downloads Markdown with the access token and the server filename", async () => {
     window.sessionStorage.setItem("tradar.accessToken", "secret-token");
     const fetcher = vi.fn((input: RequestInfo | URL) => {

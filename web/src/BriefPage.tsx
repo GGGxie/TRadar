@@ -175,7 +175,13 @@ export function BriefPage() {
       ) : (
         <div className="brief-list">
           {briefs.map((item) => (
-            <BriefCard key={item.id} brief={item} />
+            <BriefCard
+              key={item.id}
+              brief={item}
+              previous={briefs.find(
+                (candidate) => candidate.id === item.previousBriefId,
+              )}
+            />
           ))}
           <nav className="pagination" aria-label="日报分页">
             <span>
@@ -324,7 +330,24 @@ function BriefSettingsForm({
   );
 }
 
-function BriefCard({ brief }: { brief: DailyBrief }) {
+// 同日重新生成只比较上一版本之后的变化（SPEC-daily-brief DB-03），在版本上写明比较基准（#49）。
+function baselineNote(brief: DailyBrief, previous?: DailyBrief) {
+  if (!brief.previousBriefId)
+    return "首份日报：收录截止前 24 小时内的新发现与首次覆盖的项目。";
+  if (previous && previous.date === brief.date)
+    return `本版只列出版本 ${previous.version} 之后的新变化；版本 ${previous.version} 中的项目仍保留在下方。`;
+  if (previous)
+    return `本版只列出上一份日报（${previous.date} 版本 ${previous.version}）之后的新变化。`;
+  return "本版只列出上一份日报之后的新变化。";
+}
+
+function BriefCard({
+  brief,
+  previous,
+}: {
+  brief: DailyBrief;
+  previous?: DailyBrief;
+}) {
   const [downloadError, setDownloadError] = useState("");
   return (
     <article className="brief-card">
@@ -361,6 +384,7 @@ function BriefCard({ brief }: { brief: DailyBrief }) {
           {downloadError}
         </p>
       )}
+      <p className="brief-baseline">{baselineNote(brief, previous)}</p>
       <div className="brief-coverage" aria-label="数据覆盖">
         {brief.coverage.map((item) => (
           <span
